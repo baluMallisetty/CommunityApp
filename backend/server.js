@@ -125,6 +125,8 @@ async function start() {
 
   // Serve uploads publicly
   //app.use("/uploads", express.static(UPLOAD_DIR));
+  // Geo index for posts (required for $geoNear / $near queries)
+  await db.collection("posts").createIndex({ location: "2dsphere" });
 
   // ---------- Auth ----------
   app.post("/auth/signup", async (req, res) => {
@@ -180,39 +182,94 @@ async function start() {
     try {
       const posts = db.collection("posts");
       const { title, content } = req.body;
+  
+      // parse optional location
+      const lat = req.body.lat !== undefined ? parseFloat(req.body.lat) : undefined;
+      const lng = req.body.lng !== undefined ? parseFloat(req.body.lng) : undefined;
+      let location = undefined;
+      if (
+        typeof lat === "number" && !Number.isNaN(lat) &&
+        typeof lng === "number" && !Number.isNaN(lng)
+      ) {
+        location = { type: "Point", coordinates: [lng, lat] }; // GeoJSON: [lng, lat]
+      }
+  
       const files = req.files || [];
-
       const attachments = files.map(f => {
         const name = path.basename(f.path);
         return {
           filename: f.originalname,
           path: `/uploads/${name}`,
-          absoluteUrl: `${PUBLIC_BASE_URL}/uploads/${name}`, // ✅ absolute URL
+          absoluteUrl: `${PUBLIC_BASE_URL}/uploads/${name}`,
           size: f.size,
           mimetype: f.mimetype
         };
       });
-
+  
       const doc = {
         tenantId: req.user.tenantId,
         userId: req.user.userId,
         title,
         content,
         attachments,
+        location,                 // ← stored if provided
         createdAt: new Date(),
         updatedAt: new Date()
       };
-
+  
       const result = await posts.insertOne(doc);
       res.status(201).json({ ok: true, post: { ...doc, _id: result.insertedId } });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
   });
+  
 
   app.get("/posts", requireAuth, async (req, res) => {
-    const posts = db.collection("posts");
-    const list = await posts.find({ tenantId: req.user.tenantId }).sort({ createdAt: -1 }).toArray();
-    res.json({ posts: list });
+    try {
+      const posts = req.app.locals.db.collection("posts");
+      const tenantId = req.user.tenantId;
+  
+      const lat = req.query.lat !== undefined ? parseFloat(req.query.lat) : undefined;
+      const lng = req.query.lng !== undefined ? parseFloat(req.query.lng) : undefined;
+      const radiusKm = req.query.radiusKm !== undefined ? parseFloat(req.query.radiusKm) : 10; // default 10 km
+      const limit = Math.min(parseInt(req.query.limit || "50", 10), 200);
+  
+      // If coords provided, use geo search (sorted by distance)
+      if (
+        typeof lat === "number" && !Number.isNaN(lat) &&
+        typeof lng === "number" && !Number.isNaN(lng)
+      ) {
+        const pipeline = [
+          {
+            $geoNear: {
+              near: { type: "Point", coordinates: [lng, lat] },
+              distanceField: "distanceMeters",
+              maxDistance: Math.max(0, radiusKm) * 1000,
+              query: { tenantId, location: { $exists: true } },
+              spherical: true
+            }
+          },
+          { $sort: { distanceMeters: 1, createdAt: -1 } },
+          { $limit: limit }
+        ];
+        const list = await posts.aggregate(pipeline).toArray();
+        return res.json({ posts: list, meta: { mode: "geo", lat, lng, radiusKm } });
+      }
+  
+      // Fallback: non-geo list
+      const list = await posts
+        .find({ tenantId })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .toArray();
+  
+      res.json({ posts: list, meta: { mode: "list" } });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
   });
+  
 
   // ---------- Me ----------
   app.get("/me", requireAuth, async (req, res) => {
