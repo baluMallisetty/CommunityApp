@@ -1,13 +1,10 @@
 {
   "info": {
-    "_postman_id": "9d8bba44-80c9-4f93-bd92-9b66e80a8888",
+    "_postman_id": "ca4c2814-2fc5-40dd-b713-fa09e447629c",
     "name": "Community Microhelp Backend (Full API)",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "37090169"
   },
-  "variable": [
-    { "key": "baseUrl", "value": "http://localhost:3001" },
-    { "key": "token", "value": "" }
-  ],
   "item": [
     {
       "name": "Local Auth",
@@ -17,18 +14,26 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{baseUrl}}/auth/signup", "host": ["{{baseUrl}}"], "path": ["auth","signup"] },
-            "body": { "mode": "raw", "raw": "{\n  \"tenantId\": \"t123\",\n  \"email\": \"you@acme.com\",\n  \"username\": \"you\",\n  \"password\": \"passw0rd!\",\n  \"name\": \"You\"\n}" }
-          }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"t123\",\n  \"email\": \"you@acme.com\",\n  \"username\": \"you\",\n  \"password\": \"passw0rd!\",\n  \"name\": \"You\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/signup", "host": ["{{baseUrl}}"], "path": ["auth","signup"] }
+          },
+          "response": []
         },
         {
           "name": "Login (/auth/login)",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth","login"] },
-            "body": { "mode": "raw", "raw": "{\n  \"tenantId\": \"t123\",\n  \"emailOrUsername\": \"you\",\n  \"password\": \"passw0rd!\"\n}" }
-          }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"t123\",\n  \"emailOrUsername\": \"you\",\n  \"password\": \"passw0rd!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth","login"] }
+          },
+          "response": []
         }
       ]
     },
@@ -40,27 +45,30 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{baseUrl}}/auth/oauth/google", "host": ["{{baseUrl}}"], "path": ["auth","oauth","google"] },
-            "body": { "mode": "raw", "raw": "{\n  \"token\": \"<GOOGLE_ID_TOKEN>\"\n}" }
-          }
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"<GOOGLE_ID_TOKEN>\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/oauth/google", "host": ["{{baseUrl}}"], "path": ["auth","oauth","google"] }
+          },
+          "response": []
         },
         {
           "name": "Apple (/auth/oauth/apple)",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{baseUrl}}/auth/oauth/apple", "host": ["{{baseUrl}}"], "path": ["auth","oauth","apple"] },
-            "body": { "mode": "raw", "raw": "{\n  \"token\": \"<APPLE_ID_TOKEN>\"\n}" }
-          }
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"<APPLE_ID_TOKEN>\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/oauth/apple", "host": ["{{baseUrl}}"], "path": ["auth","oauth","apple"] }
+          },
+          "response": []
         },
         {
           "name": "Facebook (/auth/oauth/facebook)",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{baseUrl}}/auth/oauth/facebook", "host": ["{{baseUrl}}"], "path": ["auth","oauth","facebook"] },
-            "body": { "mode": "raw", "raw": "{\n  \"token\": \"<FB_ACCESS_TOKEN>\"\n}" }
-          }
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"<FB_ACCESS_TOKEN>\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/oauth/facebook", "host": ["{{baseUrl}}"], "path": ["auth","oauth","facebook"] }
+          },
+          "response": []
         }
       ]
     },
@@ -73,7 +81,8 @@
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
             "url": { "raw": "{{baseUrl}}/me", "host": ["{{baseUrl}}"], "path": ["me"] }
-          }
+          },
+          "response": []
         },
         {
           "name": "Update Me (/me)",
@@ -83,9 +92,10 @@
               { "key": "Authorization", "value": "Bearer {{token}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "url": { "raw": "{{baseUrl}}/me", "host": ["{{baseUrl}}"], "path": ["me"] },
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"New Name\"\n}" }
-          }
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"New Name\"\n}" },
+            "url": { "raw": "{{baseUrl}}/me", "host": ["{{baseUrl}}"], "path": ["me"] }
+          },
+          "response": []
         },
         {
           "name": "Set Role (Dev only) (/me/role)",
@@ -95,9 +105,10 @@
               { "key": "Authorization", "value": "Bearer {{token}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "url": { "raw": "{{baseUrl}}/me/role", "host": ["{{baseUrl}}"], "path": ["me","role"] },
-            "body": { "mode": "raw", "raw": "{\n  \"role\": \"admin\"\n}" }
-          }
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"admin\"\n}" },
+            "url": { "raw": "{{baseUrl}}/me/role", "host": ["{{baseUrl}}"], "path": ["me","role"] }
+          },
+          "response": []
         }
       ]
     },
@@ -110,7 +121,8 @@
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
             "url": { "raw": "{{baseUrl}}/admin/users", "host": ["{{baseUrl}}"], "path": ["admin","users"] }
-          }
+          },
+          "response": []
         }
       ]
     },
@@ -122,16 +134,19 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-            "url": { "raw": "{{baseUrl}}/posts", "host": ["{{baseUrl}}"], "path": ["posts"] },
             "body": {
               "mode": "formdata",
               "formdata": [
                 { "key": "title", "value": "Lost Dog", "type": "text" },
                 { "key": "content", "value": "Spotted near park", "type": "text" },
+                { "key": "lat", "value": "40.7411", "type": "text" },
+                { "key": "lng", "value": "-73.9897", "type": "text" },
                 { "key": "attachments", "type": "file", "src": "" }
               ]
-            }
-          }
+            },
+            "url": { "raw": "{{baseUrl}}/posts", "host": ["{{baseUrl}}"], "path": ["posts"] }
+          },
+          "response": []
         },
         {
           "name": "List Posts (/posts)",
@@ -139,7 +154,303 @@
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
             "url": { "raw": "{{baseUrl}}/posts", "host": ["{{baseUrl}}"], "path": ["posts"] }
-          }
+          },
+          "response": []
+        },
+        {
+          "name": "List Posts by Radius (/posts?lat&lng&radiusKm)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/posts?lat=40.7411&lng=-73.9897&radiusKm=5",
+              "host": ["{{baseUrl}}"], "path": ["posts"],
+              "query": [
+                { "key": "lat", "value": "40.7411" },
+                { "key": "lng", "value": "-73.9897" },
+                { "key": "radiusKm", "value": "5" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get One Post (/posts/:id)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/posts/{{postId}}", "host": ["{{baseUrl}}"], "path": ["posts","{{postId}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Comment (/posts/:id/comments)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"Nice find!\"\n}" },
+            "url": { "raw": "{{baseUrl}}/posts/{{postId}}/comments", "host": ["{{baseUrl}}"], "path": ["posts","{{postId}}","comments"] }
+          },
+          "response": []
+        },
+        {
+          "name": "List Comments (/posts/:id/comments)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/posts/{{postId}}/comments?limit=20", "host": ["{{baseUrl}}"], "path": ["posts","{{postId}}","comments"], "query":[{"key":"limit","value":"20"}] }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Comment (/posts/:id/comments/:commentId)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/posts/{{postId}}/comments/{{commentId}}", "host": ["{{baseUrl}}"], "path": ["posts","{{postId}}","comments","{{commentId}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Like Post (/posts/:id/like)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/posts/{{postId}}/like", "host": ["{{baseUrl}}"], "path": ["posts","{{postId}}","like"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Unlike Post (/posts/:id/like)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/posts/{{postId}}/like", "host": ["{{baseUrl}}"], "path": ["posts","{{postId}}","like"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Share Post (/posts/:id/share)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"target\": \"link\"\n}" },
+            "url": { "raw": "{{baseUrl}}/posts/{{postId}}/share", "host": ["{{baseUrl}}"], "path": ["posts","{{postId}}","share"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Favorite Post (/posts/:id/favorite)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/posts/{{postId}}/favorite", "host": ["{{baseUrl}}"], "path": ["posts","{{postId}}","favorite"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Unfavorite Post (/posts/:id/favorite)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/posts/{{postId}}/favorite", "host": ["{{baseUrl}}"], "path": ["posts","{{postId}}","favorite"] }
+          },
+          "response": []
+        },
+        {
+          "name": "get post attachment",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/uploads/1756097869027-868102573-Screenshot_2024-04-21_143940.png",
+              "host": ["{{baseUrl}}"],
+              "path": ["uploads","1756097869027-868102573-Screenshot_2024-04-21_143940.png"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Groups",
+      "item": [
+        {
+          "name": "Create Group (/groups)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Neighborhood Watch\",\n  \"slug\": \"watch\",\n  \"description\": \"Block B residents\"\n}" },
+            "url": { "raw": "{{baseUrl}}/groups", "host": ["{{baseUrl}}"], "path": ["groups"] }
+          },
+          "response": []
+        },
+        {
+          "name": "List Groups (/groups)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/groups", "host": ["{{baseUrl}}"], "path": ["groups"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Join Group (/groups/:id/join)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/groups/{{groupId}}/join", "host": ["{{baseUrl}}"], "path": ["groups","{{groupId}}","join"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Group Members (/groups/:id/members)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/groups/{{groupId}}/members", "host": ["{{baseUrl}}"], "path": ["groups","{{groupId}}","members"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "Create Event (/events)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Yard Sale\",\n  \"description\": \"Saturday 9am\",\n  \"startsAt\": \"2025-08-31T14:00:00.000Z\",\n  \"endsAt\": \"2025-08-31T18:00:00.000Z\",\n  \"groupId\": \"{{groupId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/events", "host": ["{{baseUrl}}"], "path": ["events"] }
+          },
+          "response": []
+        },
+        {
+          "name": "List Events (/events?from&to)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/events?from=2025-08-01T00:00:00.000Z&to=2025-09-30T00:00:00.000Z",
+              "host": ["{{baseUrl}}"], "path": ["events"],
+              "query":[
+                {"key":"from","value":"2025-08-01T00:00:00.000Z"},
+                {"key":"to","value":"2025-09-30T00:00:00.000Z"}
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "RSVP Event (/events/:id/rsvp)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"going\"\n}" },
+            "url": { "raw": "{{baseUrl}}/events/{{eventId}}/rsvp", "host": ["{{baseUrl}}"], "path": ["events","{{eventId}}","rsvp"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Invitations",
+      "item": [
+        {
+          "name": "Create Invitation (/invitations) [admin/mod]",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"newuser@acme.com\"\n}" },
+            "url": { "raw": "{{baseUrl}}/invitations", "host": ["{{baseUrl}}"], "path": ["invitations"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Invitation (/invitations/accept)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{inviteToken}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/invitations/accept", "host": ["{{baseUrl}}"], "path": ["invitations","accept"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        {
+          "name": "Create 1:1 or Group Chat (/chats)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"participantIds\": [\"local:t123:you@acme.com\",\"local:t123:friend@acme.com\"],\n  \"title\": null\n}" },
+            "url": { "raw": "{{baseUrl}}/chats", "host": ["{{baseUrl}}"], "path": ["chats"] }
+          },
+          "response": []
+        },
+        {
+          "name": "List My Chats (/chats)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/chats", "host": ["{{baseUrl}}"], "path": ["chats"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Send Message (/chats/:id/messages)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"hey there!\"\n}" },
+            "url": { "raw": "{{baseUrl}}/chats/{{chatId}}/messages", "host": ["{{baseUrl}}"], "path": ["chats","{{chatId}}","messages"] }
+          },
+          "response": []
+        },
+        {
+          "name": "List Messages & Mark Read (/chats/:id/messages)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/chats/{{chatId}}/messages?limit=50",
+              "host": ["{{baseUrl}}"], "path": ["chats","{{chatId}}","messages"],
+              "query":[{"key":"limit","value":"50"}]
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -154,9 +465,13 @@
               { "key": "Authorization", "value": "Bearer {{token}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] },
-            "body": { "mode": "raw", "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"insertOne\",\n  \"doc\": { \"title\": \"Borrow ladder\", \"status\": \"open\" }\n}" }
-          }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"insertOne\",\n  \"doc\": { \"title\": \"Borrow ladder\", \"status\": \"open\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] }
+          },
+          "response": []
         },
         {
           "name": "Find",
@@ -166,9 +481,13 @@
               { "key": "Authorization", "value": "Bearer {{token}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] },
-            "body": { "mode": "raw", "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"find\",\n  \"filter\": { \"status\": \"open\" },\n  \"limit\": 10\n}" }
-          }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"find\",\n  \"filter\": { \"status\": \"open\" },\n  \"limit\": 10\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] }
+          },
+          "response": []
         },
         {
           "name": "Update One",
@@ -178,9 +497,13 @@
               { "key": "Authorization", "value": "Bearer {{token}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] },
-            "body": { "mode": "raw", "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"updateOne\",\n  \"filter\": { \"title\": \"Borrow ladder\" },\n  \"update\": { \"$set\": { \"status\": \"claimed\" } }\n}" }
-          }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"updateOne\",\n  \"filter\": { \"title\": \"Borrow ladder\" },\n  \"update\": { \"$set\": { \"status\": \"claimed\" } }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] }
+          },
+          "response": []
         },
         {
           "name": "Delete One",
@@ -190,11 +513,22 @@
               { "key": "Authorization", "value": "Bearer {{token}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] },
-            "body": { "mode": "raw", "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"deleteOne\",\n  \"filter\": { \"title\": \"Borrow ladder\" }\n}" }
-          }
+            "body": { "mode": "raw", "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"deleteOne\",\n  \"filter\": { \"title\": \"Borrow ladder\" }\n}" },
+            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] }
+          },
+          "response": []
         }
       ]
     }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001" },
+    { "key": "token", "value": "" },
+    { "key": "postId", "value": "" },
+    { "key": "commentId", "value": "" },
+    { "key": "groupId", "value": "" },
+    { "key": "eventId", "value": "" },
+    { "key": "inviteToken", "value": "" },
+    { "key": "chatId", "value": "" }
   ]
 }
