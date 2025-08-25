@@ -1,0 +1,31 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Env & secrets
+.env
+
+# Logs
+logs
+*.log
+logs/*
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+*.lcov
+
+# Uploads & temp files
+uploads/
+tmp/
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

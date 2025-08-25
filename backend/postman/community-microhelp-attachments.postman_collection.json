@@ -1,0 +1,200 @@
+{
+  "info": {
+    "_postman_id": "9d8bba44-80c9-4f93-bd92-9b66e80a8888",
+    "name": "Community Microhelp Backend (Full API)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001" },
+    { "key": "token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Local Auth",
+      "item": [
+        {
+          "name": "Signup (/auth/signup)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/signup", "host": ["{{baseUrl}}"], "path": ["auth","signup"] },
+            "body": { "mode": "raw", "raw": "{\n  \"tenantId\": \"t123\",\n  \"email\": \"you@acme.com\",\n  \"username\": \"you\",\n  \"password\": \"passw0rd!\",\n  \"name\": \"You\"\n}" }
+          }
+        },
+        {
+          "name": "Login (/auth/login)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth","login"] },
+            "body": { "mode": "raw", "raw": "{\n  \"tenantId\": \"t123\",\n  \"emailOrUsername\": \"you\",\n  \"password\": \"passw0rd!\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Social OAuth",
+      "item": [
+        {
+          "name": "Google (/auth/oauth/google)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/oauth/google", "host": ["{{baseUrl}}"], "path": ["auth","oauth","google"] },
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"<GOOGLE_ID_TOKEN>\"\n}" }
+          }
+        },
+        {
+          "name": "Apple (/auth/oauth/apple)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/oauth/apple", "host": ["{{baseUrl}}"], "path": ["auth","oauth","apple"] },
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"<APPLE_ID_TOKEN>\"\n}" }
+          }
+        },
+        {
+          "name": "Facebook (/auth/oauth/facebook)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/oauth/facebook", "host": ["{{baseUrl}}"], "path": ["auth","oauth","facebook"] },
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"<FB_ACCESS_TOKEN>\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Me",
+      "item": [
+        {
+          "name": "Get Me (/me)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/me", "host": ["{{baseUrl}}"], "path": ["me"] }
+          }
+        },
+        {
+          "name": "Update Me (/me)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/me", "host": ["{{baseUrl}}"], "path": ["me"] },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"New Name\"\n}" }
+          }
+        },
+        {
+          "name": "Set Role (Dev only) (/me/role)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/me/role", "host": ["{{baseUrl}}"], "path": ["me","role"] },
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"admin\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "List Users (/admin/users)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/admin/users", "host": ["{{baseUrl}}"], "path": ["admin","users"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Posts",
+      "item": [
+        {
+          "name": "Create Post with Attachments (/posts)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/posts", "host": ["{{baseUrl}}"], "path": ["posts"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "Lost Dog", "type": "text" },
+                { "key": "content", "value": "Spotted near park", "type": "text" },
+                { "key": "attachments", "type": "file", "src": "" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Posts (/posts)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/posts", "host": ["{{baseUrl}}"], "path": ["posts"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Freestyle /q",
+      "item": [
+        {
+          "name": "Insert One",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] },
+            "body": { "mode": "raw", "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"insertOne\",\n  \"doc\": { \"title\": \"Borrow ladder\", \"status\": \"open\" }\n}" }
+          }
+        },
+        {
+          "name": "Find",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] },
+            "body": { "mode": "raw", "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"find\",\n  \"filter\": { \"status\": \"open\" },\n  \"limit\": 10\n}" }
+          }
+        },
+        {
+          "name": "Update One",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] },
+            "body": { "mode": "raw", "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"updateOne\",\n  \"filter\": { \"title\": \"Borrow ladder\" },\n  \"update\": { \"$set\": { \"status\": \"claimed\" } }\n}" }
+          }
+        },
+        {
+          "name": "Delete One",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/q", "host": ["{{baseUrl}}"], "path": ["q"] },
+            "body": { "mode": "raw", "raw": "{\n  \"collection\": \"requests\",\n  \"action\": \"deleteOne\",\n  \"filter\": { \"title\": \"Borrow ladder\" }\n}" }
+          }
+        }
+      ]
+    }
+  ]
+}
