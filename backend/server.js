@@ -335,7 +335,7 @@ async function start() {
   app.post("/posts", requireAuth, upload.array("attachments", 5), async (req, res) => {
     try {
       const posts = db.collection("posts");
-      const { title, content } = req.body;
+      const { title, content, category } = req.body;
 
       // optional geo
       const lat = req.body.lat !== undefined ? parseFloat(req.body.lat) : undefined;
@@ -362,6 +362,7 @@ async function start() {
         userId: req.user.userId,
         title,
         content,
+        category: category || "General",
         attachments,
         location,
         commentsCount: 0,
@@ -376,7 +377,7 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  // GET /posts?lat=&lng=&radiusKm=&limit=
+  // GET /posts?lat=&lng=&radiusKm=&limit=&q=&category=
   app.get("/posts", requireAuth, async (req, res) => {
     try {
       const posts = db.collection("posts");
@@ -386,6 +387,15 @@ async function start() {
       const lng = req.query.lng !== undefined ? parseFloat(req.query.lng) : undefined;
       const radiusKm = req.query.radiusKm !== undefined ? parseFloat(req.query.radiusKm) : 10;
       const limit = Math.min(parseInt(req.query.limit || "50", 10), 200);
+      const q = typeof req.query.q === "string" ? req.query.q.trim() : undefined;
+      const category = typeof req.query.category === "string" ? req.query.category.trim() : undefined;
+
+      const baseMatch = { tenantId };
+      if (category) baseMatch.category = category;
+      if (q) {
+        const re = new RegExp(q, "i");
+        baseMatch.$or = [{ title: re }, { content: re }];
+      }
 
       if (Number.isFinite(lat) && Number.isFinite(lng)) {
         const pipeline = [
@@ -394,7 +404,7 @@ async function start() {
               near: { type: "Point", coordinates: [lng, lat] },
               distanceField: "distanceMeters",
               maxDistance: Math.max(0, radiusKm) * 1000,
-              query: { tenantId, location: { $exists: true } },
+              query: { ...baseMatch, location: { $exists: true } },
               spherical: true,
             }
           },
@@ -412,7 +422,7 @@ async function start() {
                 ] } } },
                 { $limit: 1 }
               ],
-              as: "myLike"
+              as: "myLike",
             }
           },
           { $addFields: { likedByMe: { $gt: [{ $size: "$myLike" }, 0] } } },
@@ -423,7 +433,7 @@ async function start() {
       }
 
       const list = await posts.aggregate([
-        { $match: { tenantId } },
+        { $match: baseMatch },
         { $sort: { createdAt: -1 } },
         { $limit: limit },
         {
@@ -438,7 +448,7 @@ async function start() {
               ] } } },
               { $limit: 1 }
             ],
-            as: "myLike"
+            as: "myLike",
           }
         },
         { $addFields: { likedByMe: { $gt: [{ $size: "$myLike" }, 0] } } },
@@ -448,6 +458,7 @@ async function start() {
       res.json({ posts: list, meta: { mode: "list" } });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
+
 
   // single post + first page comments
   app.get("/posts/:id", requireAuth, async (req, res) => {
