@@ -32,7 +32,7 @@ export const listPosts  = async (params = {}) => {
 };
 export const getPost    = (id) => apiGet(`/posts/${id}`);
 export const createPost = (title, content, lat, lng, files = []) =>
-  apiUploadPost({ title, content, lat, lng, files });
+  apiUploadPost('/posts', { title, content, lat, lng, files });
 export const addComment = (id, text) => apiPost(`/posts/${id}/comments`, { text });
 export const likePost   = (id) => apiPost(`/posts/${id}/like`, {});
 export const unlikePost = (id) => apiDelete(`/posts/${id}/like`, {});
