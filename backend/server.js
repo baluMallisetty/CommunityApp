@@ -45,6 +45,11 @@ const BCRYPT_ROUNDS = 10;
 // absolute base URL for local dev
 const PUBLIC_BASE_URL = `http://localhost:${PORT}`;
 
+const VERBOSE_LOGGING = (process.env.VERBOSE_LOGGING || "false") === "true";
+const LOG_DIR = path.join(process.cwd(), "logs");
+if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+const LOG_STREAM = fs.createWriteStream(path.join(LOG_DIR, "server.log"), { flags: "a" });
+
 // ---------- Files / Uploads (private) ----------
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -112,6 +117,19 @@ const loginSchema = z.object({
 function randomToken(n = 40) {
   const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   return Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+}
+
+function sanitize(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  const result = Array.isArray(obj) ? [] : {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (["password", "token", "authorization", "auth"].includes(key.toLowerCase())) {
+      result[key] = "[REDACTED]";
+    } else {
+      result[key] = sanitize(value);
+    }
+  }
+  return result;
 }
 
 // ---------- App bootstrap ----------
@@ -196,6 +214,35 @@ async function start() {
   // Middlewares
   app.use(cors());
   app.use(express.json({ limit: "5mb" }));
+  app.use((req, res, next) => {
+    const start = Date.now();
+    const originalSend = res.send.bind(res);
+    res.send = (body) => {
+      res.locals.body = body;
+      return originalSend(body);
+    };
+    res.on("finish", () => {
+      const entry = {
+        time: new Date().toISOString(),
+        method: req.method,
+        url: req.originalUrl,
+        status: res.statusCode,
+        durationMs: Date.now() - start,
+      };
+      if (VERBOSE_LOGGING) {
+        entry.request = {
+          headers: sanitize(req.headers),
+          query: sanitize(req.query),
+          body: sanitize(req.body),
+        };
+        let respBody = res.locals.body;
+        if (typeof respBody === "object") respBody = sanitize(respBody);
+        entry.response = respBody;
+      }
+      LOG_STREAM.write(JSON.stringify(entry) + "\n");
+    });
+    next();
+  });
   app.use(rateLimit({ windowMs: 15_000, max: 200 }));
 
   // ---------- Auth ----------
