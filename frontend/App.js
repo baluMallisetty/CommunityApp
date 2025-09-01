@@ -7,6 +7,7 @@ import { AuthProvider, AuthContext } from './src/context/AuthContext';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import FeedScreen from './src/screens/FeedScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -21,7 +22,7 @@ function Root() {
         {user ? (
           // Logged-in stack
           <>
-            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="Home" component={FeedScreen} />
           </>
         ) : (
           // Auth stack

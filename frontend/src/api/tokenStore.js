@@ -1,23 +1,31 @@
 // src/api/tokenStore.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const KEY = 'cmh_tokens'; // { accessToken, refreshToken, expiresAtISO }
-
-export async function saveTokens(t) {
-  await AsyncStorage.setItem(KEY, JSON.stringify(t));
-}
+const KEY = 'cmh_tokens'; // { accessToken, refreshToken, expiresAt? }
+let memory = null;
 
 export async function getTokens() {
+  if (memory) return memory;
   const raw = await AsyncStorage.getItem(KEY);
-  return raw ? JSON.parse(raw) : null;
+  memory = raw ? JSON.parse(raw) : null;
+  return memory;
+}
+
+export async function setTokens(tokens) {
+  memory = tokens || null;
+  if (tokens) {
+    await AsyncStorage.setItem(KEY, JSON.stringify(tokens));
+  } else {
+    await AsyncStorage.removeItem(KEY);
+  }
 }
 
 export async function clearTokens() {
+  memory = null;
   await AsyncStorage.removeItem(KEY);
 }
 
-export function isAccessTokenExpired(expiresAtISO) {
-  if (!expiresAtISO) return false; // if backend didn't send exp, assume valid
-  const skewMs = 30 * 1000; // 30s safety
-  return Date.now() + skewMs > new Date(expiresAtISO).getTime();
-}
+// Also export a default object so either import style works:
+//   import { getTokens } from './tokenStore'
+//   import tokenStore from './tokenStore'; tokenStore.getTokens()
+export default { getTokens, setTokens, clearTokens };

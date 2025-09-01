@@ -1,2 +1,17 @@
-export const theme={colors:{primary:'#00A562',primaryDark:'#0E5A36',accent:'#0BBF6A',background:'#F4F5F6',card:'#FFFFFF',text:'#1F2937',muted:'#6B7280',border:'#E5E7EB',danger:'#EF4444'},spacing:(n=1)=>n*8,radius:12};
+// src/theme.js
+export const theme = {
+    colors: {
+      bg: '#F7F8FA',
+      card: '#FFFFFF',
+      text: '#111827',
+      sub: '#6B7280',
+      border: '#E5E7EB',
+      primary: '#16A34A', // Nextdoor-ish green
+      chip: '#EFF6FF',
+    },
+    radius: 14,
+    pad: 14,
+  };
+  
 export const navTheme={dark:false,colors:{primary:theme.colors.primary,background:theme.colors.background,card:theme.colors.card,text:theme.colors.text,border:theme.colors.border,notification:theme.colors.accent}};
+

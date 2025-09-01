@@ -1,13 +1,124 @@
+// src/context/AuthContext.js
 import React, { createContext, useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getMe, login as apiLogin, signup as apiSignup } from '../api';
+import * as Google from 'expo-auth-session/providers/google';
+import * as Facebook from 'expo-auth-session/providers/facebook';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as AuthSession from 'expo-auth-session';
+
+import { GOOGLE_CLIENT_ID, FACEBOOK_APP_ID } from '../config';
+import { getTokens, clearTokens } from '../api/tokenStore';
+import {
+  getMe,
+  login as apiLogin,
+  signup as apiSignup,
+  loginWithGoogle,
+  loginWithFacebook,
+  loginWithApple,
+} from '../api/auth';
+
 export const AuthContext = createContext();
-export function AuthProvider({ children }){
+
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(()=>{(async()=>{ const token=await AsyncStorage.getItem('token'); if(token){ try{ const me=await getMe(); setUser(me.user);}catch{await AsyncStorage.removeItem('token');}} setLoading(false);})()},[]);
-  const login = async (tenantId, emailOrUsername, password) => { const { token, user } = await apiLogin({ tenantId, emailOrUsername, password }); await AsyncStorage.setItem('token', token); setUser(user); };
-  const signup = async (tenantId, email, username, password, name) => { const { token, user } = await apiSignup({ tenantId, email, username, password, name }); await AsyncStorage.setItem('token', token); setUser(user); };
-  const logout = async () => { await AsyncStorage.removeItem('token'); setUser(null); };
-  return <AuthContext.Provider value={{ user, login, signup, logout, loading }}>{children}</AuthContext.Provider>;
+  const [booting, setBooting] = useState(true);
+
+  // On boot: restore session if token exists
+  useEffect(() => {
+    (async () => {
+      try {
+        const tokens = await getTokens();
+        if (tokens?.accessToken) {
+          const me = await getMe();
+          setUser(me.user);
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        setBooting(false);
+      }
+    })();
+  }, []);
+
+  // ---- Custom auth (tenant hidden from users) ----
+  const doLogin = async (emailOrUsername, password) => {
+    await apiLogin({ tenantId: 't123', emailOrUsername, password });
+    const me = await getMe();
+    setUser(me.user);
+  };
+
+  const doSignup = async (email, username, password) => {
+    // backend expects name; use username as default display name
+    await apiSignup({ tenantId: 't123', email, username, password, name: username });
+    const me = await getMe();
+    setUser(me.user);
+  };
+
+  // ---- Google ----
+  const [googleReq, googleRes, googlePrompt] = Google.useAuthRequest({
+    clientId: GOOGLE_CLIENT_ID,
+  });
+  useEffect(() => {
+    (async () => {
+      if (googleRes?.type === 'success') {
+        const { authentication, params } = googleRes;
+        const idToken = params?.id_token || authentication?.idToken;
+        const accessToken = authentication?.accessToken;
+        await loginWithGoogle({ idToken, accessToken });
+        const me = await getMe();
+        setUser(me.user);
+      }
+    })();
+  }, [googleRes]);
+
+  // ---- Facebook ----
+  const [fbReq, fbRes, fbPrompt] = Facebook.useAuthRequest({
+    clientId: FACEBOOK_APP_ID,
+    responseType: AuthSession.ResponseType.Token,
+  });
+  useEffect(() => {
+    (async () => {
+      if (fbRes?.type === 'success') {
+        const accessToken = fbRes?.authentication?.accessToken || fbRes?.params?.access_token;
+        await loginWithFacebook({ accessToken });
+        const me = await getMe();
+        setUser(me.user);
+      }
+    })();
+  }, [fbRes]);
+
+  // ---- Apple (iOS only) ----
+  const doAppleLogin = async () => {
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+    await loginWithApple({ idToken: credential.identityToken });
+    const me = await getMe();
+    setUser(me.user);
+  };
+
+  const doLogout = async () => {
+    await clearTokens();
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        booting,
+        // make sure these names exist for consumers:
+        doLogin,
+        doSignup,
+        googlePrompt,
+        fbPrompt,
+        doAppleLogin,
+        doLogout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
