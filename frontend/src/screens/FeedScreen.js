@@ -10,6 +10,7 @@ import { theme } from '../theme';
 export default function FeedScreen({ navigation }) {
   const [q, setQ] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [category, setCategory] = useState('Nearby');
   const [items, setItems] = useState([]);
   const [cursor, setCursor] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -20,6 +21,8 @@ export default function FeedScreen({ navigation }) {
     setLoading(true);
     try {
       const params = { limit: 10, q: q || undefined };
+      const cat = category === 'Nearby' ? undefined : category;
+      if (cat) params.category = cat;
       if (!refresh && cursor) params.after = cursor;
       const data = await listPosts(params);
       const list = data.posts || [];
@@ -29,7 +32,7 @@ export default function FeedScreen({ navigation }) {
       setLoading(false);
       if (refresh) setRefreshing(false);
     }
-  }, [q, cursor, loading]);
+  }, [q, category, cursor, loading]);
 
   useEffect(() => {
     load({ refresh: true });
@@ -38,7 +41,7 @@ export default function FeedScreen({ navigation }) {
   useEffect(() => {
     const t = setTimeout(() => load({ refresh: true }), 300);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, category]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -98,7 +101,7 @@ export default function FeedScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Filter chip row (stub) */}
+      {/* Filter chip row */}
       {filterOpen && (
         <View
           style={{
@@ -108,10 +111,14 @@ export default function FeedScreen({ navigation }) {
             flexWrap: 'wrap',
           }}
         >
-          <Chip label="Nearby" selected />
-          <Chip label="Lost & Found" />
-          <Chip label="General" />
-          <Chip label="For Sale & Free" />
+          {['Nearby', 'Lost & Found', 'General', 'For Sale & Free'].map((c) => (
+            <Chip
+              key={c}
+              label={c}
+              selected={category === c}
+              onPress={() => setCategory((prev) => (prev === c ? 'Nearby' : c))}
+            />
+          ))}
         </View>
       )}
 
@@ -160,9 +167,10 @@ export default function FeedScreen({ navigation }) {
   );
 }
 
-function Chip({ label, selected }) {
+function Chip({ label, selected, onPress }) {
   return (
-    <View
+    <TouchableOpacity
+      onPress={onPress}
       style={{
         backgroundColor: selected ? '#DCFCE7' : '#F3F4F6',
         borderColor: selected ? '#16A34A' : '#E5E7EB',
@@ -180,6 +188,6 @@ function Chip({ label, selected }) {
       >
         {label}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
