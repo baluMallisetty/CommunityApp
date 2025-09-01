@@ -50,6 +50,25 @@ const LOG_DIR = path.join(process.cwd(), "logs");
 if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 const LOG_STREAM = fs.createWriteStream(path.join(LOG_DIR, "server.log"), { flags: "a" });
 
+function logError(err, priority = "P2") {
+  const message = err && err.message ? err.message : String(err);
+  const entry = {
+    time: new Date().toISOString(),
+    level: "error",
+    priority,
+    message: priority === "P1" ? `P1: ${message}` : message,
+    stack: err && err.stack ? err.stack : undefined,
+  };
+  LOG_STREAM.write(JSON.stringify(entry) + "\n");
+  console.error(entry.message, entry.stack || "");
+}
+
+process.on("uncaughtException", (err) => logError(err, "P1"));
+process.on("unhandledRejection", (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  logError(err, "P1");
+});
+
 // ---------- Files / Uploads (private) ----------
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -96,6 +115,7 @@ async function requireAuth(req, res, next) {
     req.appUser = appUser;
     next();
   } catch (e) {
+    logError(e);
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 }
@@ -278,7 +298,10 @@ async function start() {
         userId: doc.userId, tenantId: doc.tenantId, role: doc.role, email: doc.email, name: doc.name,
       });
       res.status(201).json({ token, user: { ...doc, passwordHash: undefined } });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+      logError(e);
+      res.status(500).json({ error: e.message });
+    }
   });
 
   app.post("/auth/login", async (req, res) => {
@@ -305,7 +328,10 @@ async function start() {
       });
       const { passwordHash, ...safeUser } = user;
       res.json({ token, user: safeUser });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+      logError(e);
+      res.status(500).json({ error: e.message });
+    }
   });
 
   // ---------- Me ----------
@@ -375,7 +401,10 @@ async function start() {
       res.set("Expires", "0");
       if (req.query.download === "1") return res.download(filePath);
       return res.sendFile(filePath);
-    } catch (e) { return res.status(500).json({ error: e.message }); }
+    } catch (e) {
+      logError(e);
+      return res.status(500).json({ error: e.message });
+    }
   });
 
   // ---------- Posts (create, list w/ geo, single) ----------
@@ -421,7 +450,10 @@ async function start() {
 
       const r = await posts.insertOne(doc);
       res.status(201).json({ ok: true, post: { ...doc, _id: r.insertedId } });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+      logError(e);
+      res.status(500).json({ error: e.message });
+    }
   });
 
   // GET /posts?lat=&lng=&radiusKm=&limit=&q=&category=
@@ -503,7 +535,10 @@ async function start() {
       ]).toArray();
 
       res.json({ posts: list, meta: { mode: "list" } });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+      logError(e);
+      res.status(500).json({ error: e.message });
+    }
   });
 
 
@@ -587,6 +622,7 @@ async function start() {
       await posts.updateOne({ _id: postId, tenantId: req.user.tenantId }, { $inc: { likesCount: 1 }, $set: { updatedAt: new Date() } });
       res.status(201).json({ liked: true });
     } catch (e) {
+      logError(e);
       if (e?.code === 11000) return res.status(200).json({ liked: true });
       res.status(500).json({ error: e.message });
     }
@@ -631,6 +667,7 @@ async function start() {
       await favorites.insertOne({ tenantId: req.user.tenantId, postId, userId: req.user.userId, createdAt: new Date() });
       res.status(201).json({ favorited: true });
     } catch (e) {
+      logError(e);
       if (e?.code === 11000) return res.status(200).json({ favorited: true });
       res.status(500).json({ error: e.message });
     }
@@ -679,6 +716,7 @@ async function start() {
       await members.insertOne({ tenantId: req.user.tenantId, groupId, userId: req.user.userId, role: "member", createdAt: new Date() });
       res.status(201).json({ joined: true });
     } catch (e) {
+      logError(e);
       if (e?.code === 11000) return res.status(200).json({ joined: true });
       res.status(500).json({ error: e.message });
     }
@@ -865,13 +903,25 @@ async function start() {
     res.json({ messages: list.reverse(), page: { skip, limit } });
   });
 
+  app.use((err, req, res, next) => {
+    logError(err, err?.priority === "P1" ? "P1" : "P2");
+    res.status(500).json({ error: "Internal server error" });
+  });
+
   // ---------- Start ----------
   app.listen(PORT, () => {
     console.log(`API running on ${PUBLIC_BASE_URL}`);
   });
 }
 
-start().catch((e) => {
-  console.error("Failed to start:", e);
-  process.exit(1);
-});
+async function bootstrap() {
+  try {
+    await start();
+  } catch (e) {
+    logError(e, "P1");
+    console.log("Retrying startup in 5s...");
+    setTimeout(bootstrap, 5000);
+  }
+}
+
+bootstrap();
