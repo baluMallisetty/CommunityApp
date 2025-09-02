@@ -27,7 +27,7 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
   const [category, setCategory] = useState(null);
 
   const prepareAsset = async (a) => {
-    let thumbnail;
+    let thumbnail = a.type === 'image' ? a.uri : null;
     if (a.type === 'video') {
       try {
         const { uri: thumb } = await VideoThumbnails.getThumbnailAsync(a.uri);
@@ -91,21 +91,22 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
     <View style={{ marginRight: 8, alignItems: 'center' }}>
       <View style={{ position: 'relative' }}>
         <TouchableOpacity onLongPress={drag} onPress={() => setPreview(index)}>
-          {item.type.startsWith('video') ? (
-            <Image
-              source={{ uri: item.thumbnail || item.uri }}
+          {item.type.startsWith('video') && !item.thumbnail ? (
+            <Video
+              source={{ uri: item.uri }}
               style={{ width: 80, height: 80, borderRadius: 6 }}
+              resizeMode="cover"
             />
           ) : (
             <Image
-              source={{ uri: item.uri }}
+              source={{ uri: item.thumbnail || item.uri }}
               style={{ width: 80, height: 80, borderRadius: 6 }}
             />
           )}
         </TouchableOpacity>
         <TouchableOpacity
           onPress={(e) => {
-            e.stopPropagation();
+            e?.stopPropagation?.();
             removeMedia(index);
           }}
           style={{
@@ -123,7 +124,7 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
       </View>
       <TouchableOpacity
         onPress={(e) => {
-          e.stopPropagation();
+          e?.stopPropagation?.();
           replaceMedia(index);
         }}
         style={{ marginTop: 4 }}
