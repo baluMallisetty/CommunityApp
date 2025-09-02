@@ -87,7 +87,7 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
     }
   };
 
-  const renderMediaItem = ({ item, drag, index }) => (
+  const renderItem = ({ item, drag, index }) => (
     <View style={{ marginRight: 8, alignItems: 'center' }}>
       <View style={{ position: 'relative' }}>
         <TouchableOpacity onLongPress={drag} onPress={() => setPreview(index)}>
@@ -107,7 +107,6 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
         <TouchableOpacity
           onPress={(e) => {
             e?.stopPropagation?.();
-            console.log(index);
             removeMedia(index);
           }}
           style={{
@@ -161,7 +160,7 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
               horizontal
               keyExtractor={(_, idx) => String(idx)}
               onDragEnd={({ data }) => setMedia(data)}
-              renderItem={renderMediaItem}
+              renderItem={renderItem}
               contentContainerStyle={{ marginBottom: 12 }}
             />
           )}
