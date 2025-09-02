@@ -21,7 +21,15 @@ const qs = (params = {}) => {
 };
 
 // ---------- Posts ----------
-export const listPosts  = (params = {}) => apiGet(`/posts${qs(params)}`);
+export const listPosts  = async (params = {}) => {
+  const data = await apiGet(`/posts${qs(params)}`);
+  data.posts = (data.posts || []).map(p => ({
+    ...p,
+    likes: p.likesCount,
+    liked: p.likedByMe,
+  }));
+  return data;
+};
 export const getPost    = (id) => apiGet(`/posts/${id}`);
 export const createPost = (title, content, lat, lng, files = []) =>
   apiUploadPost('/posts', { title, content, lat, lng, files });
