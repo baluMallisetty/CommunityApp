@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { listPosts, likePost, unlikePost } from '../api';
 import PostCard from '../components/PostCard';
 import FAB from '../ui/FAB';
+import CreatePostModal from '../components/CreatePostModal';
 import { theme } from '../theme';
 
 export default function FeedScreen({ navigation }) {
@@ -15,6 +16,7 @@ export default function FeedScreen({ navigation }) {
   const [cursor, setCursor] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [postOpen, setPostOpen] = useState(false);
 
   const load = useCallback(async ({ refresh = false } = {}) => {
     if (loading) return;
@@ -162,7 +164,15 @@ export default function FeedScreen({ navigation }) {
         contentContainerStyle={{ paddingBottom: 90 }}
       />
 
-      <FAB title="Post" onPress={() => navigation?.navigate?.('CreatePost')} />
+      <FAB title="Post" onPress={() => setPostOpen(true)} />
+      <CreatePostModal
+        visible={postOpen}
+        onClose={() => setPostOpen(false)}
+        onCreated={() => {
+          setPostOpen(false);
+          load({ refresh: true });
+        }}
+      />
     </View>
   );
 }
