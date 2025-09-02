@@ -87,52 +87,56 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
     }
   };
 
-  const renderItem = ({ item, drag, index }) => (
-    <View style={{ marginRight: 8, alignItems: 'center' }}>
-      <View style={{ position: 'relative' }}>
-        <TouchableOpacity onLongPress={drag} onPress={() => setPreview(index)}>
-          {item.type.startsWith('video') && !item.thumbnail ? (
-            <Video
-              source={{ uri: item.uri }}
-              style={{ width: 80, height: 80, borderRadius: 6 }}
-              resizeMode="cover"
-            />
-          ) : (
-            <Image
-              source={{ uri: item.thumbnail || item.uri }}
-              style={{ width: 80, height: 80, borderRadius: 6 }}
-            />
-          )}
-        </TouchableOpacity>
+  // capture the item index so media can be removed or replaced
+  const renderMediaItem = ({ item, drag, getIndex }) => {
+    const index = getIndex();
+    return (
+      <View style={{ marginRight: 8, alignItems: 'center' }}>
+        <View style={{ position: 'relative' }}>
+          <TouchableOpacity onLongPress={drag} onPress={() => setPreview(index)}>
+            {item.type.startsWith('video') && !item.thumbnail ? (
+              <Video
+                source={{ uri: item.uri }}
+                style={{ width: 80, height: 80, borderRadius: 6 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <Image
+                source={{ uri: item.thumbnail || item.uri }}
+                style={{ width: 80, height: 80, borderRadius: 6 }}
+              />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              removeMedia(index);
+            }}
+            style={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              borderRadius: 12,
+              padding: 2,
+              zIndex: 1,
+            }}
+          >
+            <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity
           onPress={(e) => {
             e?.stopPropagation?.();
-            removeMedia(index);
+            replaceMedia(index);
           }}
-          style={{
-            position: 'absolute',
-            top: -6,
-            right: -6,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            borderRadius: 12,
-            padding: 2,
-            zIndex: 1,
-          }}
+          style={{ marginTop: 4 }}
         >
-          <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
+          <Text style={{ color: '#3B82F6', fontWeight: '600' }}>Modify</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity
-        onPress={(e) => {
-          e?.stopPropagation?.();
-          replaceMedia(index);
-        }}
-        style={{ marginTop: 4 }}
-      >
-        <Text style={{ color: '#3B82F6', fontWeight: '600' }}>Modify</Text>
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
 
   const categories = [
     'Share an update',
@@ -160,7 +164,7 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
               horizontal
               keyExtractor={(_, idx) => String(idx)}
               onDragEnd={({ data }) => setMedia(data)}
-              renderItem={renderItem}
+              renderItem={renderMediaItem}
               contentContainerStyle={{ marginBottom: 12 }}
             />
           )}
