@@ -154,9 +154,17 @@ function sanitize(obj) {
 
 // ---------- App bootstrap ----------
 async function start() {
-  const client = new MongoClient(process.env.MONGO_URL);
+  // Allow the server to start even if environment variables are not provided.
+  // This mirrors the defaults documented at the top of the file and prevents
+  // the backend from crashing with "Cannot read properties of undefined" when
+  // `MONGO_URL` or `DB_NAME` are missing.  Using sensible defaults makes local
+  // development (and CI) work out of the box.
+  const MONGO_URL = process.env.MONGO_URL || "mongodb://localhost:27017";
+  const DB_NAME = process.env.DB_NAME || "community";
+
+  const client = new MongoClient(MONGO_URL);
   await client.connect();
-  const db = client.db(process.env.DB_NAME);
+  const db = client.db(DB_NAME);
 
   // Users
   await db.collection("users").createIndexes([
