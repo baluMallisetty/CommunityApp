@@ -41,6 +41,26 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
     }
   };
 
+  const removeMedia = (index) => {
+    setMedia((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const replaceMedia = async (index) => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      quality: 0.7,
+    });
+    if (!result.canceled) {
+      const a = result.assets[0];
+      const asset = {
+        uri: a.uri,
+        name: a.fileName || `media.${a.type === 'video' ? 'mp4' : 'jpg'}`,
+        type: a.mimeType || (a.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+      };
+      setMedia((prev) => prev.map((m, i) => (i === index ? asset : m)));
+    }
+  };
+
   const submit = async () => {
     try {
       setLoading(true);
@@ -58,25 +78,41 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
   };
 
   const renderItem = ({ item, drag, index }) => (
-    <TouchableOpacity
-      onLongPress={drag}
-      onPress={() => setPreview(index)}
-      style={{ marginRight: 8 }}
-    >
-      {item.type.startsWith('video') ? (
-        <Video
-          source={{ uri: item.uri }}
-          style={{ width: 80, height: 80, borderRadius: 6 }}
-          useNativeControls={false}
-          resizeMode="cover"
-        />
-      ) : (
-        <Image
-          source={{ uri: item.uri }}
-          style={{ width: 80, height: 80, borderRadius: 6 }}
-        />
-      )}
-    </TouchableOpacity>
+    <View style={{ marginRight: 8, alignItems: 'center' }}>
+      <View style={{ position: 'relative' }}>
+        <TouchableOpacity onLongPress={drag} onPress={() => setPreview(index)}>
+          {item.type.startsWith('video') ? (
+            <Video
+              source={{ uri: item.uri }}
+              style={{ width: 80, height: 80, borderRadius: 6 }}
+              useNativeControls={false}
+              resizeMode="cover"
+            />
+          ) : (
+            <Image
+              source={{ uri: item.uri }}
+              style={{ width: 80, height: 80, borderRadius: 6 }}
+            />
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => removeMedia(index)}
+          style={{
+            position: 'absolute',
+            top: -6,
+            right: -6,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            borderRadius: 12,
+            padding: 2,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
+        </TouchableOpacity>
+      </View>
+      <TouchableOpacity onPress={() => replaceMedia(index)} style={{ marginTop: 4 }}>
+        <Text style={{ color: '#3B82F6', fontWeight: '600' }}>Modify</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   const categories = [
