@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import DraggableFlatList from 'react-native-draggable-flatlist';
 
 import { createPost } from '../api';
@@ -25,6 +26,24 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
   const [preview, setPreview] = useState(null);
   const [category, setCategory] = useState(null);
 
+  const prepareAsset = async (a) => {
+    let thumbnail;
+    if (a.type === 'video') {
+      try {
+        const { uri: thumb } = await VideoThumbnails.getThumbnailAsync(a.uri);
+        thumbnail = thumb;
+      } catch {
+        thumbnail = null;
+      }
+    }
+    return {
+      uri: a.uri,
+      name: a.fileName || `media.${a.type === 'video' ? 'mp4' : 'jpg'}`,
+      type: a.mimeType || (a.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+      thumbnail,
+    };
+  };
+
   const pickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
@@ -32,11 +51,7 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
       quality: 0.7,
     });
     if (!result.canceled) {
-      const assets = result.assets.map((a) => ({
-        uri: a.uri,
-        name: a.fileName || `media.${a.type === 'video' ? 'mp4' : 'jpg'}`,
-        type: a.mimeType || (a.type === 'video' ? 'video/mp4' : 'image/jpeg'),
-      }));
+      const assets = await Promise.all(result.assets.map(prepareAsset));
       setMedia((prev) => [...prev, ...assets]);
     }
   };
@@ -51,12 +66,7 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
       quality: 0.7,
     });
     if (!result.canceled) {
-      const a = result.assets[0];
-      const asset = {
-        uri: a.uri,
-        name: a.fileName || `media.${a.type === 'video' ? 'mp4' : 'jpg'}`,
-        type: a.mimeType || (a.type === 'video' ? 'video/mp4' : 'image/jpeg'),
-      };
+      const asset = await prepareAsset(result.assets[0]);
       setMedia((prev) => prev.map((m, i) => (i === index ? asset : m)));
     }
   };
@@ -82,11 +92,9 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
       <View style={{ position: 'relative' }}>
         <TouchableOpacity onLongPress={drag} onPress={() => setPreview(index)}>
           {item.type.startsWith('video') ? (
-            <Video
-              source={{ uri: item.uri }}
+            <Image
+              source={{ uri: item.thumbnail || item.uri }}
               style={{ width: 80, height: 80, borderRadius: 6 }}
-              useNativeControls={false}
-              resizeMode="cover"
             />
           ) : (
             <Image
@@ -96,7 +104,10 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
           )}
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => removeMedia(index)}
+          onPress={(e) => {
+            e.stopPropagation();
+            removeMedia(index);
+          }}
           style={{
             position: 'absolute',
             top: -6,
@@ -104,12 +115,19 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
             backgroundColor: 'rgba(0,0,0,0.6)',
             borderRadius: 12,
             padding: 2,
+            zIndex: 1,
           }}
         >
           <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity onPress={() => replaceMedia(index)} style={{ marginTop: 4 }}>
+      <TouchableOpacity
+        onPress={(e) => {
+          e.stopPropagation();
+          replaceMedia(index);
+        }}
+        style={{ marginTop: 4 }}
+      >
         <Text style={{ color: '#3B82F6', fontWeight: '600' }}>Modify</Text>
       </TouchableOpacity>
     </View>
@@ -220,6 +238,7 @@ function PreviewModal({ item, onClose }) {
             style={{ width: '90%', height: '70%' }}
             useNativeControls
             resizeMode="contain"
+            shouldPlay
           />
         ) : (
           <Image
