@@ -7,6 +7,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
+import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
 import * as VideoThumbnails from 'expo-video-thumbnails';
@@ -17,6 +18,7 @@ import Screen from '../ui/Screen';
 import Field from '../ui/Field';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
+import LocationPickerModal from './LocationPickerModal';
 
 export default function CreatePostModal({ visible, onClose, onCreated }) {
   const [title, setTitle] = useState('');
@@ -25,6 +27,8 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [category, setCategory] = useState(null);
+  const [location, setLocation] = useState(null);
+  const [locationPickerVisible, setLocationPickerVisible] = useState(false);
 
   const prepareAsset = async (a) => {
     let thumbnail = a.type === 'image' ? a.uri : null;
@@ -71,15 +75,32 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
     }
   };
 
+  const useCurrentLocation = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission denied', 'Location permission is required.');
+      return;
+    }
+    const { coords } = await Location.getCurrentPositionAsync({});
+    setLocation({ latitude: coords.latitude, longitude: coords.longitude });
+  };
+
   const submit = async () => {
     try {
       setLoading(true);
-      await createPost(title || 'Untitled', description, undefined, undefined, media);
+      await createPost(
+        title || 'Untitled',
+        description,
+        location?.latitude,
+        location?.longitude,
+        media
+      );
       onCreated?.();
       setTitle('');
       setDescription('');
       setMedia([]);
       setCategory(null);
+      setLocation(null);
     } catch (e) {
       Alert.alert('Error', e.message || String(e));
     } finally {
@@ -158,6 +179,32 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
             placeholder="What's on your mind, neighbor?"
             multiline
           />
+          <Field
+            label="Location"
+            value=
+              {location
+                ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`
+                : ''}
+            placeholder="No location selected"
+            editable={false}
+          />
+          <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+            <Button
+              title="Use Current Location"
+              onPress={useCurrentLocation}
+              style={{ flex: 1, marginRight: 8 }}
+            />
+            <Button
+              title="Pick Location"
+              onPress={() => setLocationPickerVisible(true)}
+              style={{ flex: 1 }}
+            />
+          </View>
+          {location && (
+            <View style={{ marginBottom: 12 }}>
+              <Button title="Clear Location" onPress={() => setLocation(null)} />
+            </View>
+          )}
           {media.length > 0 && (
             <DraggableFlatList
               data={media}
@@ -202,6 +249,12 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
       <PreviewModal
         item={preview !== null ? media[preview] : null}
         onClose={() => setPreview(null)}
+      />
+      <LocationPickerModal
+        visible={locationPickerVisible}
+        initialLocation={location}
+        onSelect={setLocation}
+        onClose={() => setLocationPickerVisible(false)}
       />
     </Modal>
   );
