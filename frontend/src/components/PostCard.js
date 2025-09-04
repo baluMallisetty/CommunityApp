@@ -1,13 +1,31 @@
 // src/components/PostCard.js
-import React, { useMemo } from 'react';
-import { View, Text, Image, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Image, TouchableOpacity, FlatList, Modal, Dimensions, ScrollView } from 'react-native';
 import { AntDesign, Feather } from '@expo/vector-icons';
+import { Video } from 'expo-av';
 import { imageSource } from '../api';
 import { theme } from '../theme';
 
 export default function PostCard({ post, onLike, onComment, onShare, onPress }) {
-  const firstAttachment = Array.isArray(post.attachments) && post.attachments[0];
-  const mediaSrc = useMemo(() => (firstAttachment ? imageSource(firstAttachment.url || firstAttachment.path) : null), [firstAttachment]);
+  const attachments = Array.isArray(post.attachments) ? post.attachments : [];
+  const [media, setMedia] = useState([]); // [{ type, source }]
+  const [viewer, setViewer] = useState(null); // index
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const list = await Promise.all(
+        attachments.map(async (a) => ({
+          type: a.mimetype?.startsWith('video') ? 'video' : 'image',
+          source: await imageSource(a.absoluteUrl || a.url || a.path),
+        }))
+      );
+      if (!cancel) setMedia(list);
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [attachments]);
 
   return (
     <TouchableOpacity onPress={() => onPress?.(post)} activeOpacity={0.9}
@@ -44,13 +62,34 @@ export default function PostCard({ post, onLike, onComment, onShare, onPress }) 
       {post.content ? <ExpandableText text={post.content} /> : null}
 
       {/* Media */}
-      {mediaSrc ? (
-        <Image
-          source={mediaSrc}
-          style={{ width: '100%', height: 200, borderRadius: 10, marginTop: 8 }}
-          resizeMode="cover"
+      {media.length > 0 && (
+        <FlatList
+          data={media}
+          horizontal
+          pagingEnabled
+          keyExtractor={(_, i) => String(i)}
+          renderItem={({ item, index }) => (
+            <TouchableOpacity onPress={() => setViewer(index)}>
+              {item.type === 'video' ? (
+                <Video
+                  source={item.source}
+                  style={{ width: Dimensions.get('window').width - 28, height: 200, borderRadius: 10 }}
+                  useNativeControls
+                  resizeMode="cover"
+                />
+              ) : (
+                <Image
+                  source={item.source}
+                  style={{ width: Dimensions.get('window').width - 28, height: 200, borderRadius: 10 }}
+                  resizeMode="cover"
+                />
+              )}
+            </TouchableOpacity>
+          )}
+          showsHorizontalScrollIndicator={false}
+          style={{ marginTop: 8 }}
         />
-      ) : null}
+      )}
 
       {/* Actions */}
       <View style={{ flexDirection: 'row', marginTop: 10, gap: 14 }}>
@@ -58,7 +97,40 @@ export default function PostCard({ post, onLike, onComment, onShare, onPress }) 
         <IconText icon={<Feather name="message-circle" size={18} color={theme.colors.sub} />} text={`${post.commentsCount || 0}`} onPress={() => onComment?.(post)} />
         <IconText icon={<Feather name="send" size={18} color={theme.colors.sub} />} text="Share" onPress={() => onShare?.(post)} />
       </View>
+      {media.length > 0 && (
+        <MediaViewer media={media} index={viewer} onClose={() => setViewer(null)} />
+      )}
     </TouchableOpacity>
+  );
+}
+
+function MediaViewer({ media, index, onClose }) {
+  const width = Dimensions.get('window').width;
+  if (index === null) return null;
+  return (
+    <Modal visible transparent onRequestClose={onClose}>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        contentOffset={{ x: width * index, y: 0 }}
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' }}
+      >
+        {media.map((m, i) => (
+          <TouchableOpacity
+            key={i}
+            style={{ width, justifyContent: 'center', alignItems: 'center' }}
+            onPress={onClose}
+            activeOpacity={1}
+          >
+            {m.type === 'video' ? (
+              <Video source={m.source} style={{ width, height: '100%' }} useNativeControls resizeMode="contain" />
+            ) : (
+              <Image source={m.source} style={{ width, height: '100%' }} resizeMode="contain" />
+            )}
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </Modal>
   );
 }
 
