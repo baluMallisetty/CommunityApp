@@ -1,6 +1,7 @@
 // src/api/index.js
 import { apiGet, apiPost, apiPatch, apiDelete, apiUploadPost } from './apiClient';
 import { BASE_URL } from '../config';
+import { getTokens } from './tokenStore';
 
 // ---------- Auth ----------
 export const signup   = (data) => apiPost('/auth/signup', data);
@@ -70,7 +71,11 @@ export const sendMessage  = (chatId, text) => apiPost(`/chats/${chatId}/messages
 export const listMessages = (chatId, params) => apiGet(`/chats/${chatId}/messages${qs(params)}`);
 
 // ---------- Media helper (native Image auth) ----------
-export function imageSource(pathOrUrl, token) {
+export async function imageSource(pathOrUrl) {
   const url = pathOrUrl?.startsWith('http') ? pathOrUrl : `${BASE_URL}${pathOrUrl}`;
-  return token ? { uri: url, headers: { Authorization: `Bearer ${token}` } } : { uri: url };
+  const tokens = await getTokens();
+  const token = tokens?.accessToken;
+  return token
+    ? { uri: url, headers: { Authorization: `Bearer ${token}` } }
+    : { uri: url };
 }
