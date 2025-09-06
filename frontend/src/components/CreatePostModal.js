@@ -12,6 +12,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import DraggableFlatList from 'react-native-draggable-flatlist';
+import MapView, { Marker } from 'react-native-maps';
 
 import { createPost } from '../api';
 import Screen from '../ui/Screen';
@@ -179,29 +180,50 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
             placeholder="What's on your mind, neighbor?"
             multiline
           />
-          <Field
-            label="Location"
-            value=
-              {location
-                ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`
-                : ''}
-            placeholder="No location selected"
-            editable={false}
-            onPress={() => setLocationPickerVisible(true)}
-          />
+          {location ? (
+            <TouchableOpacity
+              onPress={() => setLocationPickerVisible(true)}
+              style={{ height: 150, marginBottom: 12, position: 'relative' }}
+            >
+              <MapView
+                style={{ flex: 1 }}
+                region={{ ...location, latitudeDelta: 0.01, longitudeDelta: 0.01 }}
+                pointerEvents="none"
+              >
+                <Marker coordinate={location} />
+              </MapView>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  setLocation(null);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: 6,
+                  right: 6,
+                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  borderRadius: 12,
+                  padding: 4,
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          ) : (
+            <Field
+              label="Location"
+              value=""
+              placeholder="No location selected"
+              editable={false}
+              onPress={() => setLocationPickerVisible(true)}
+            />
+          )}
           <View style={{ flexDirection: 'row', marginBottom: 12 }}>
             <Button
               title="Use Current Location"
               onPress={useCurrentLocation}
-              style={{ flex: 1, marginRight: location ? 8 : 0 }}
+              style={{ flex: 1 }}
             />
-            {location && (
-              <Button
-                title="Clear Location"
-                onPress={() => setLocation(null)}
-                style={{ flex: 1 }}
-              />
-            )}
           </View>
           {media.length > 0 && (
             <DraggableFlatList
