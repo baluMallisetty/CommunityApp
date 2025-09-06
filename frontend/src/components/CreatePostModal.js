@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Platform,
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -77,13 +78,17 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
   };
 
   const useCurrentLocation = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission denied', 'Location permission is required.');
-      return;
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required.');
+        return;
+      }
+      const { coords } = await Location.getCurrentPositionAsync({});
+      setLocation({ latitude: coords.latitude, longitude: coords.longitude });
+    } catch (e) {
+      Alert.alert('Error', e.message || String(e));
     }
-    const { coords } = await Location.getCurrentPositionAsync({});
-    setLocation({ latitude: coords.latitude, longitude: coords.longitude });
   };
 
   const submit = async () => {
@@ -181,41 +186,76 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
             multiline
           />
           {location ? (
-            <TouchableOpacity
-              onPress={() => setLocationPickerVisible(true)}
-              style={{ height: 150, marginBottom: 12, position: 'relative' }}
-            >
-              <MapView
-                style={{ flex: 1 }}
-                region={{ ...location, latitudeDelta: 0.01, longitudeDelta: 0.01 }}
-                pointerEvents="none"
-              >
-                <Marker coordinate={location} />
-              </MapView>
-              <TouchableOpacity
-                onPress={(e) => {
-                  e?.stopPropagation?.();
-                  setLocation(null);
-                }}
+            Platform.OS === 'web' ? (
+              <View
                 style={{
-                  position: 'absolute',
-                  top: 6,
-                  right: 6,
-                  backgroundColor: 'rgba(0,0,0,0.6)',
-                  borderRadius: 12,
-                  padding: 4,
+                  height: 150,
+                  marginBottom: 12,
+                  position: 'relative',
+                  borderWidth: 1,
+                  borderColor: '#ccc',
+                  justifyContent: 'center',
+                  alignItems: 'center',
                 }}
               >
-                <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
+                <Text>
+                  {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setLocation(null)}
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    backgroundColor: 'rgba(0,0,0,0.6)',
+                    borderRadius: 12,
+                    padding: 4,
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setLocationPickerVisible(true)}
+                style={{ height: 150, marginBottom: 12, position: 'relative' }}
+              >
+                <MapView
+                  style={{ flex: 1 }}
+                  region={{
+                    ...location,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }}
+                  pointerEvents="none"
+                >
+                  <Marker coordinate={location} />
+                </MapView>
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    setLocation(null);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    backgroundColor: 'rgba(0,0,0,0.6)',
+                    borderRadius: 12,
+                    padding: 4,
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
+                </TouchableOpacity>
               </TouchableOpacity>
-            </TouchableOpacity>
+            )
           ) : (
             <Field
               label="Location"
               value=""
               placeholder="No location selected"
               editable={false}
-              onPress={() => setLocationPickerVisible(true)}
+              onPress={() => Platform.OS !== 'web' && setLocationPickerVisible(true)}
             />
           )}
           <View style={{ flexDirection: 'row', marginBottom: 12 }}>
@@ -270,12 +310,14 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
         item={preview !== null ? media[preview] : null}
         onClose={() => setPreview(null)}
       />
-      <LocationPickerModal
-        visible={locationPickerVisible}
-        initialLocation={location}
-        onSelect={setLocation}
-        onClose={() => setLocationPickerVisible(false)}
-      />
+      {Platform.OS !== 'web' && (
+        <LocationPickerModal
+          visible={locationPickerVisible}
+          initialLocation={location}
+          onSelect={setLocation}
+          onClose={() => setLocationPickerVisible(false)}
+        />
+      )}
     </Modal>
   );
 }
