@@ -166,11 +166,14 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
   };
 
   const categories = [
-    'Share an update',
-    'Sell an item',
-    'Request advice',
-    'Post a missing pet',
-    'Poll your neighbors',
+    'Cleaning',
+    'Electrical',
+    'Plumbing',
+    'HVAC',
+    'Garage Door',
+    'Roof',
+    'Gardening',
+    'other',
   ];
 
   return (
