@@ -1,6 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import MapView, { Callout, Marker } from 'react-native-maps';
+import { Feather } from '@expo/vector-icons';
 import { listPosts } from '../api';
 import { theme } from '../theme';
 
@@ -10,6 +19,19 @@ const DEFAULT_REGION = {
   latitudeDelta: 0.5,
   longitudeDelta: 0.5,
 };
+
+const CATEGORY_PALETTE = [
+  '#2563EB',
+  '#16A34A',
+  '#F59E0B',
+  '#DB2777',
+  '#7C3AED',
+  '#0891B2',
+  '#F97316',
+  '#0F172A',
+];
+
+const RADIUS_OPTIONS = [2, 5, 10, 25, 50];
 
 function extractCoordinate(post) {
   const lat = post?.location?.coordinates?.[1];
@@ -45,42 +67,152 @@ function computeRegion(points) {
   };
 }
 
+function normalizeCategory(value) {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  return 'General';
+}
+
+function buildCategoryColors(categories) {
+  const map = new Map();
+  categories.forEach((category, index) => {
+    const paletteColor = CATEGORY_PALETTE[index % CATEGORY_PALETTE.length];
+    map.set(category, paletteColor);
+  });
+  return map;
+}
+
+function FilterChip({ label, selected, onPress }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[
+        styles.chip,
+        selected && styles.chipSelected,
+      ]}
+    >
+      <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 export default function PostMapScreen({ navigation }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchText, setSearchText] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [showNearby, setShowNearby] = useState(false);
+  const [radiusKm, setRadiusKm] = useState(10);
+  const [userLocation, setUserLocation] = useState(null);
+  const [geoError, setGeoError] = useState(null);
+  const [geoLoading, setGeoLoading] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
+    const handle = setTimeout(() => {
+      setSearchQuery(searchText.trim());
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [searchText]);
+
+  const requestLocation = useCallback(() => {
+    if (typeof navigator === 'undefined' || !navigator?.geolocation) {
+      setGeoError('Geolocation is not supported in this environment.');
+      return;
+    }
+    setGeoLoading(true);
+    setGeoError(null);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setGeoLoading(false);
+        setUserLocation({ latitude: coords.latitude, longitude: coords.longitude });
+      },
+      (err) => {
+        setGeoLoading(false);
+        setGeoError(err?.message || 'Unable to determine your location.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, []);
+
+  const toggleNearby = useCallback(() => {
+    setShowNearby((prev) => {
+      const next = !prev;
+      if (next && !userLocation) {
+        requestLocation();
+      }
+      if (!next) {
+        setGeoError(null);
+      }
+      return next;
+    });
+  }, [requestLocation, userLocation]);
+
+  useEffect(() => {
+    let cancelled = false;
     const loadPosts = async () => {
       setLoading(true);
+      setError(null);
       try {
-        const data = await listPosts({ limit: 100 });
-        if (!mounted) return;
-        setPosts(data?.posts ?? []);
+        const params = {
+          limit: 200,
+        };
+        if (searchQuery) params.q = searchQuery;
+        if (selectedCategory !== 'all') params.category = selectedCategory;
+        if (showNearby && userLocation) {
+          params.lat = userLocation.latitude;
+          params.lng = userLocation.longitude;
+          params.radiusKm = radiusKm;
+        }
+
+        const data = await listPosts(params);
+        if (cancelled) return;
+        const mapped = (data?.posts ?? []).map((post) => ({
+          ...post,
+          distanceKm:
+            typeof post.distanceMeters === 'number'
+              ? Number((post.distanceMeters / 1000).toFixed(2))
+              : post.distanceKm,
+        }));
+        setPosts(mapped);
       } catch (err) {
-        if (!mounted) return;
+        if (cancelled) return;
         setPosts([]);
+        setError(err?.message || 'Failed to load posts.');
       } finally {
-        if (mounted) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadPosts();
-
     return () => {
-      mounted = false;
+      cancelled = true;
     };
-  }, []);
+  }, [searchQuery, selectedCategory, showNearby, radiusKm, userLocation]);
+
+  const categories = useMemo(() => {
+    const unique = new Set(posts.map((p) => normalizeCategory(p.category)));
+    return Array.from(unique).sort((a, b) => a.localeCompare(b));
+  }, [posts]);
+
+  const categoryColors = useMemo(() => buildCategoryColors(categories), [categories]);
 
   const points = useMemo(
     () =>
       posts
-        .map((post) => ({
-          post,
-          coordinate: extractCoordinate(post),
-        }))
-        .filter(({ coordinate }) => coordinate),
-    [posts]
+        .map((post) => {
+          const coordinate = extractCoordinate(post);
+          if (!coordinate) return null;
+          const category = normalizeCategory(post.category);
+          return {
+            post,
+            coordinate,
+            category,
+            color: categoryColors.get(category) || CATEGORY_PALETTE[0],
+          };
+        })
+        .filter(Boolean),
+    [posts, categoryColors]
   );
 
   const region = useMemo(
@@ -88,7 +220,23 @@ export default function PostMapScreen({ navigation }) {
     [points]
   );
 
-  if (loading) {
+  const mapKey = useMemo(
+    () => `${region.latitude.toFixed(3)}-${region.longitude.toFixed(3)}-${region.latitudeDelta.toFixed(3)}`,
+    [region]
+  );
+
+  const legendItems = useMemo(
+    () =>
+      categories.map((category) => ({
+        category,
+        color: categoryColors.get(category) || CATEGORY_PALETTE[0],
+      })),
+    [categories, categoryColors]
+  );
+
+  const activeRadiusLabel = `${radiusKm} km`;
+
+  if (loading && !points.length) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -96,82 +244,373 @@ export default function PostMapScreen({ navigation }) {
     );
   }
 
-  if (!points.length) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.emptyTitle}>No posts with locations yet</Text>
-        <Text style={styles.emptySubtitle}>
-          Create a post with a location to see it on the map.
-        </Text>
-      </View>
-    );
-  }
-
   return (
-    <MapView style={StyleSheet.absoluteFill} initialRegion={region}>
-      {points.map(({ post, coordinate }) => (
-        <Marker key={post._id} coordinate={coordinate}>
-          <Callout
-            onPress={() =>
-              navigation?.navigate?.('PostDetail', {
-                id: post._id,
-              })
-            }
-          >
-            <View style={styles.callout}>
-              <Text style={styles.calloutTitle} numberOfLines={1}>
-                {post.title || 'Untitled Post'}
-              </Text>
-              {post.content ? (
-                <Text style={styles.calloutBody} numberOfLines={2}>
-                  {post.content}
+    <View style={styles.container}>
+      <MapView key={mapKey} style={StyleSheet.absoluteFill} initialRegion={region}>
+        {points.map(({ post, coordinate, color, category }) => (
+          <Marker key={post._id} coordinate={coordinate} pinColor={color}>
+            <Callout
+              onPress={() =>
+                navigation?.navigate?.('PostDetail', {
+                  id: post._id,
+                })
+              }
+            >
+              <View style={styles.callout}>
+                <Text style={styles.calloutTitle} numberOfLines={1}>
+                  {post.title || 'Untitled Post'}
                 </Text>
-              ) : null}
-              <Text style={styles.calloutHint}>Tap to open</Text>
+                <Text style={styles.calloutCategory}>{category}</Text>
+                {post.content ? (
+                  <Text style={styles.calloutBody} numberOfLines={2}>
+                    {post.content}
+                  </Text>
+                ) : null}
+                {post.distanceKm !== undefined ? (
+                  <Text style={styles.calloutMeta}>{post.distanceKm} km away</Text>
+                ) : null}
+                <Text style={styles.calloutHint}>Tap to open</Text>
+              </View>
+            </Callout>
+          </Marker>
+        ))}
+      </MapView>
+
+      <View style={styles.overlayTop}>
+        <View style={styles.filterCard}>
+          <View style={styles.filterHeader}>
+            <Text style={styles.filterTitle}>Discover posts on the map</Text>
+            {loading ? <ActivityIndicator size="small" color={theme.colors.primary} /> : null}
+          </View>
+          <View style={styles.searchRow}>
+            <Feather name="search" size={16} color={theme.colors.sub} />
+            <TextInput
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholder="Search services, keywords, or titles"
+              placeholderTextColor={theme.colors.sub}
+              style={styles.searchInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            <FilterChip
+              label="All"
+              selected={selectedCategory === 'all'}
+              onPress={() => setSelectedCategory('all')}
+            />
+            {legendItems.map(({ category }) => (
+              <FilterChip
+                key={category}
+                label={category}
+                selected={selectedCategory === category}
+                onPress={() =>
+                  setSelectedCategory((prev) => (prev === category ? 'all' : category))
+                }
+              />
+            ))}
+          </ScrollView>
+
+          <View style={styles.nearbyRow}>
+            <TouchableOpacity style={styles.nearbyToggle} onPress={toggleNearby}>
+              <View style={[styles.nearbyIndicator, showNearby && styles.nearbyIndicatorActive]} />
+              <Text style={styles.nearbyLabel}>Nearby</Text>
+            </TouchableOpacity>
+            <Text style={styles.nearbyHint}>
+              {showNearby ? `Showing results within ${activeRadiusLabel}` : 'Show results around you'}
+            </Text>
+          </View>
+
+          {showNearby ? (
+            <View style={styles.radiusRow}>
+              {RADIUS_OPTIONS.map((value) => (
+                <TouchableOpacity
+                  key={value}
+                  onPress={() => setRadiusKm(value)}
+                  style={[
+                    styles.radiusChip,
+                    radiusKm === value && styles.radiusChipSelected,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.radiusLabel,
+                      radiusKm === value && styles.radiusLabelSelected,
+                    ]}
+                  >
+                    {value} km
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={styles.locateButton} onPress={requestLocation}>
+                {geoLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.locateLabel}>Update location</Text>
+                )}
+              </TouchableOpacity>
             </View>
-          </Callout>
-        </Marker>
-      ))}
-    </MapView>
+          ) : null}
+
+          {geoError ? <Text style={styles.errorText}>{geoError}</Text> : null}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        </View>
+      </View>
+
+      {points.length === 0 && !loading ? (
+        <View style={styles.emptyOverlay} pointerEvents="none">
+          <Text style={styles.emptyTitle}>No posts match the current filters</Text>
+          <Text style={styles.emptySubtitle}>Try broadening your search or disabling Nearby.</Text>
+        </View>
+      ) : null}
+
+      {legendItems.length ? (
+        <View style={styles.legendCard}>
+          <Text style={styles.legendTitle}>Map legend</Text>
+          {legendItems.map(({ category, color }) => (
+            <View key={category} style={styles.legendRow}>
+              <View style={[styles.legendSwatch, { backgroundColor: color }]} />
+              <Text style={styles.legendLabel}>{category}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.bg,
+  },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
     backgroundColor: theme.colors.bg,
   },
-  emptyTitle: {
-    fontSize: 18,
+  overlayTop: {
+    position: 'absolute',
+    top: 24,
+    left: 16,
+    right: 16,
+  },
+  filterCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 6,
+    gap: 12,
+  },
+  filterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  filterTitle: {
+    fontSize: 16,
     fontWeight: '700',
     color: theme.colors.text,
-    marginBottom: 8,
-    textAlign: 'center',
   },
-  emptySubtitle: {
-    fontSize: 14,
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchInput: {
+    marginLeft: 8,
+    flex: 1,
+    color: theme.colors.text,
+  },
+  chipRow: {
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  chip: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  chipSelected: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#16A34A',
+  },
+  chipLabel: {
+    color: '#374151',
+    fontWeight: '600',
+  },
+  chipLabelSelected: {
+    color: '#166534',
+  },
+  nearbyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  nearbyToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nearbyIndicator: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#CBD5F5',
+    backgroundColor: '#fff',
+  },
+  nearbyIndicatorActive: {
+    backgroundColor: '#16A34A',
+    borderColor: '#16A34A',
+  },
+  nearbyLabel: {
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  nearbyHint: {
+    flex: 1,
     color: theme.colors.sub,
-    textAlign: 'center',
+  },
+  radiusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  radiusChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  radiusChipSelected: {
+    borderColor: theme.colors.primary,
+    backgroundColor: '#DBEAFE',
+  },
+  radiusLabel: {
+    color: '#4B5563',
+    fontWeight: '600',
+  },
+  radiusLabelSelected: {
+    color: theme.colors.primary,
+  },
+  locateButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  locateLabel: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  errorText: {
+    color: '#B91C1C',
+    fontSize: 12,
   },
   callout: {
-    maxWidth: 200,
+    maxWidth: 220,
+    gap: 4,
   },
   calloutTitle: {
     fontSize: 16,
     fontWeight: '700',
-    marginBottom: 4,
+  },
+  calloutCategory: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.primary,
   },
   calloutBody: {
     fontSize: 14,
     color: theme.colors.sub,
-    marginBottom: 8,
+  },
+  calloutMeta: {
+    fontSize: 12,
+    color: theme.colors.sub,
   },
   calloutHint: {
     fontSize: 12,
     color: theme.colors.primary,
+  },
+  emptyOverlay: {
+    position: 'absolute',
+    top: '50%',
+    left: 16,
+    right: 16,
+    transform: [{ translateY: -40 }],
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    gap: 6,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    color: theme.colors.text,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    color: theme.colors.sub,
+  },
+  legendCard: {
+    position: 'absolute',
+    bottom: 24,
+    left: 16,
+    padding: 14,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+    minWidth: 160,
+    gap: 8,
+  },
+  legendTitle: {
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  legendSwatch: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  legendLabel: {
+    color: theme.colors.sub,
+    fontSize: 13,
   },
 });
 
