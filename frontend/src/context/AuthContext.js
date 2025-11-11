@@ -5,7 +5,7 @@ import * as Facebook from 'expo-auth-session/providers/facebook';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as AuthSession from 'expo-auth-session';
 
-import { GOOGLE_CLIENT_ID, FACEBOOK_APP_ID } from '../config';
+import { GOOGLE_CLIENT_ID, FACEBOOK_APP_ID, DEFAULT_TENANT_ID } from '../config';
 import { getTokens, clearTokens } from '../api/tokenStore';
 import {
   getMe,
@@ -41,14 +41,14 @@ export function AuthProvider({ children }) {
 
   // ---- Custom auth (tenant hidden from users) ----
   const doLogin = async (emailOrUsername, password) => {
-    await apiLogin({ tenantId: 't123', emailOrUsername, password });
+    await apiLogin({ tenantId: DEFAULT_TENANT_ID, emailOrUsername, password });
     const me = await getMe();
     setUser(me.user);
   };
 
   const doSignup = async (email, username, password) => {
     // backend expects name; use username as default display name
-    await apiSignup({ tenantId: 't123', email, username, password, name: username });
+    await apiSignup({ tenantId: DEFAULT_TENANT_ID, email, username, password, name: username });
     const me = await getMe();
     setUser(me.user);
   };
