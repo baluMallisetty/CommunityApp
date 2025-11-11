@@ -3,12 +3,16 @@ import 'react-native-reanimated';
 import React, { useContext } from 'react';
 import { Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Feather } from '@expo/vector-icons';
 
 import { AuthProvider, AuthContext } from './src/context/AuthContext';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import FeedScreen from './src/screens/FeedScreen';
 import PostDetailScreen from './src/screens/PostDetailScreen';
+import PostMapScreen from './src/screens/PostMapScreen';
+import { theme } from './src/theme';
 
 const isWeb = Platform.OS === 'web';
 const createStack = isWeb
@@ -23,6 +27,26 @@ if (!isWeb) {
 }
 
 const Stack = createStack();
+const Tab = createBottomTabNavigator();
+
+function HomeTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.sub,
+        tabBarIcon: ({ color, size }) => {
+          const icon = route.name === 'List' ? 'list' : 'map';
+          return <Feather name={icon} color={color} size={size} />;
+        },
+      })}
+    >
+      <Tab.Screen name="List" component={FeedScreen} options={{ title: 'List' }} />
+      <Tab.Screen name="Map" component={PostMapScreen} options={{ title: 'Map' }} />
+    </Tab.Navigator>
+  );
+}
 
 function Root() {
   const { user, booting } = useContext(AuthContext);
@@ -33,7 +57,7 @@ function Root() {
       <Stack.Navigator screenOptions={{ headerShown: true }}>
         {user ? (
           <>
-            <Stack.Screen name="Home" component={FeedScreen} />
+            <Stack.Screen name="Home" component={HomeTabs} options={{ headerShown: false }} />
             <Stack.Screen name="PostDetail" component={PostDetailScreen} />
           </>
         ) : (
