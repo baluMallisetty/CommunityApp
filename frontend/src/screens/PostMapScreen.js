@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -94,6 +95,8 @@ function FilterChip({ label, selected, onPress }) {
     </TouchableOpacity>
   );
 }
+
+const isWeb = Platform.OS === 'web';
 
 export default function PostMapScreen({ navigation }) {
   const [posts, setPosts] = useState([]);
@@ -236,6 +239,33 @@ export default function PostMapScreen({ navigation }) {
 
   const activeRadiusLabel = `${radiusKm} km`;
 
+  const navigateBack = useCallback(() => {
+    if (navigation?.navigate) {
+      navigation.navigate('List');
+    } else if (navigation?.goBack) {
+      navigation.goBack();
+    }
+  }, [navigation]);
+
+  if (isWeb) {
+    return (
+      <View style={styles.webFallbackContainer}>
+        <View style={styles.webFallbackCard}>
+          <Feather name="map" size={32} color={theme.colors.primary} />
+          <Text style={styles.webFallbackTitle}>Map preview unavailable</Text>
+          <Text style={styles.webFallbackBody}>
+            The interactive map is not supported in the web preview. Use the mobile app to see
+            nearby posts on the map.
+          </Text>
+          <TouchableOpacity style={styles.backButtonLarge} onPress={navigateBack}>
+            <Feather name="chevron-left" size={18} color="#fff" />
+            <Text style={styles.backButtonLargeLabel}>Back to feed</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   if (loading && !points.length) {
     return (
       <View style={styles.center}>
@@ -246,6 +276,10 @@ export default function PostMapScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <TouchableOpacity style={styles.backButton} onPress={navigateBack}>
+        <Feather name="chevron-left" size={18} color={theme.colors.text} />
+        <Text style={styles.backButtonLabel}>Back</Text>
+      </TouchableOpacity>
       <MapView key={mapKey} style={StyleSheet.absoluteFill} initialRegion={region}>
         {points.map(({ post, coordinate, color, category }) => (
           <Marker key={post._id} coordinate={coordinate} pinColor={color}>
@@ -397,6 +431,29 @@ const styles = StyleSheet.create({
     top: 24,
     left: 16,
     right: 16,
+    paddingTop: 56,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 24,
+    left: 16,
+    zIndex: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  backButtonLabel: {
+    fontWeight: '600',
+    color: theme.colors.text,
   },
   filterCard: {
     backgroundColor: '#fff',
@@ -611,6 +668,52 @@ const styles = StyleSheet.create({
   legendLabel: {
     color: theme.colors.sub,
     fontSize: 13,
+  },
+  webFallbackContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  webFallbackCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    gap: 12,
+    maxWidth: 360,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
+  },
+  webFallbackTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.text,
+    textAlign: 'center',
+  },
+  webFallbackBody: {
+    fontSize: 14,
+    color: theme.colors.sub,
+    textAlign: 'center',
+  },
+  backButtonLarge: {
+    marginTop: 8,
+    backgroundColor: theme.colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  backButtonLargeLabel: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
   },
 });
 
