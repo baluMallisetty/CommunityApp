@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Callout, Marker } from 'react-native-maps';
+import MapView, { Callout, Marker as NativeMarker } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
 import { listPosts } from '../api';
 import { theme } from '../theme';
@@ -93,6 +94,110 @@ function FilterChip({ label, selected, onPress }) {
       <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{label}</Text>
     </TouchableOpacity>
   );
+}
+
+const isWeb = Platform.OS === 'web';
+
+let leafletLoaderPromise = null;
+
+function loadLeaflet() {
+  if (!isWeb || typeof window === 'undefined') {
+    return Promise.reject(new Error('Leaflet is only available on the web.'));
+  }
+
+  if (window.L) {
+    return Promise.resolve(window.L);
+  }
+
+  if (leafletLoaderPromise) {
+    return leafletLoaderPromise;
+  }
+
+  leafletLoaderPromise = new Promise((resolve, reject) => {
+    const finish = () => {
+      if (window.L) {
+        resolve(window.L);
+      } else {
+        reject(new Error('Leaflet failed to initialize.'));
+      }
+    };
+
+    if (!document.querySelector('link[data-web-map="leaflet"]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      link.crossOrigin = '';
+      link.dataset.webMap = 'leaflet';
+      document.head.appendChild(link);
+    }
+
+    const existingScript = document.querySelector('script[data-web-map="leaflet"]');
+    if (existingScript) {
+      existingScript.addEventListener('load', finish, { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('Leaflet script failed to load.')), {
+        once: true,
+      });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.crossOrigin = '';
+    script.dataset.webMap = 'leaflet';
+    script.onload = finish;
+    script.onerror = () => reject(new Error('Leaflet script failed to load.'));
+    document.body.appendChild(script);
+  });
+
+  return leafletLoaderPromise;
+}
+
+function regionToWebZoom(region) {
+  if (!region) return 10;
+  const delta = Math.max(region.latitudeDelta ?? 0.5, region.longitudeDelta ?? 0.5);
+  const zoom = Math.round(Math.log2(360 / Math.max(delta, 0.0005)));
+  return Math.max(2, Math.min(16, zoom));
+}
+
+function escapeHtml(value) {
+  if (value === undefined || value === null) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatMultiline(content) {
+  return escapeHtml(content).replace(/\n/g, '<br />');
+}
+
+function buildPopupMarkup(post, category, color) {
+  const safeTitle = escapeHtml(post?.title || 'Untitled Post');
+  const safeCategory = escapeHtml(category);
+  const hasContent = typeof post?.content === 'string' && post.content.trim();
+  const safeContent = hasContent ? formatMultiline(post.content.trim()) : '';
+  const hasDistance = post?.distanceKm !== undefined && post.distanceKm !== null;
+  const distanceLabel = hasDistance ? escapeHtml(`${post.distanceKm} km away`) : '';
+  const safeId = escapeHtml(String(post?._id ?? ''));
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:6px;max-width:240px;">
+      <div style="font-weight:700;font-size:16px;color:#0f172a;">${safeTitle}</div>
+      <div style="font-size:12px;font-weight:600;color:${color};">${safeCategory}</div>
+      ${hasContent ? `<p style="margin:0;color:#475569;font-size:14px;">${safeContent}</p>` : ''}
+      ${hasDistance ? `<p style="margin:0;color:#475569;font-size:12px;">${distanceLabel}</p>` : ''}
+      <button
+        type="button"
+        data-role="open-post"
+        data-post-id="${safeId}"
+        style="align-self:flex-start;background-color:#2563EB;color:#fff;border:none;border-radius:999px;padding:6px 12px;font-weight:600;cursor:pointer;"
+      >Open post</button>
+      <div style="font-size:12px;color:#2563EB;">Tap to open</div>
+    </div>
+  `;
 }
 
 export default function PostMapScreen({ navigation }) {
@@ -236,6 +341,144 @@ export default function PostMapScreen({ navigation }) {
 
   const activeRadiusLabel = `${radiusKm} km`;
 
+  const navigateBack = useCallback(() => {
+    if (navigation?.navigate) {
+      navigation.navigate('List');
+    } else if (navigation?.goBack) {
+      navigation.goBack();
+    }
+  }, [navigation]);
+
+  const openPostDetail = useCallback(
+    (postId) => {
+      if (!postId) return;
+      navigation?.navigate?.('PostDetail', {
+        id: postId,
+      });
+    },
+    [navigation]
+  );
+
+  const mapContainerRef = useRef(null);
+  const leafletMapRef = useRef(null);
+  const markersLayerRef = useRef(null);
+  const [webMapError, setWebMapError] = useState(null);
+  const [webMapLoading, setWebMapLoading] = useState(isWeb);
+
+  useEffect(() => {
+    if (!isWeb) {
+      return undefined;
+    }
+
+    return () => {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+      }
+      markersLayerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isWeb) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const ensureMap = async () => {
+      try {
+        const L = await loadLeaflet();
+        if (cancelled || !mapContainerRef.current) return;
+
+        if (!leafletMapRef.current) {
+          leafletMapRef.current = L.map(mapContainerRef.current, {
+            center: [region.latitude, region.longitude],
+            zoom: regionToWebZoom(region),
+            scrollWheelZoom: true,
+          });
+
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+          }).addTo(leafletMapRef.current);
+        }
+
+        const mapInstance = leafletMapRef.current;
+        mapInstance.setView(
+          [region.latitude, region.longitude],
+          regionToWebZoom(region)
+        );
+
+        if (!markersLayerRef.current) {
+          markersLayerRef.current = L.layerGroup().addTo(mapInstance);
+        }
+
+        markersLayerRef.current.clearLayers();
+
+        points.forEach(({ post, coordinate, color, category }) => {
+          const marker = L.circleMarker(
+            [coordinate.latitude, coordinate.longitude],
+            {
+              radius: 9,
+              weight: 2,
+              color: '#FFFFFF',
+              fillColor: color,
+              fillOpacity: 1,
+            }
+          );
+
+          marker.bindPopup(buildPopupMarkup(post, category, color));
+
+          const handleOpen = () => openPostDetail(post._id);
+
+          marker.on('popupopen', () => {
+            const popupEl = marker.getPopup()?.getElement();
+            const button = popupEl?.querySelector('button[data-role="open-post"]');
+            if (button) {
+              button.addEventListener('click', handleOpen);
+            }
+          });
+
+          marker.on('popupclose', () => {
+            const popupEl = marker.getPopup()?.getElement();
+            const button = popupEl?.querySelector('button[data-role="open-post"]');
+            if (button) {
+              button.removeEventListener('click', handleOpen);
+            }
+          });
+
+          marker.on('remove', () => {
+            const popupEl = marker.getPopup()?.getElement();
+            const button = popupEl?.querySelector('button[data-role="open-post"]');
+            if (button) {
+              button.removeEventListener('click', handleOpen);
+            }
+          });
+
+          marker.addTo(markersLayerRef.current);
+        });
+
+        setWebMapError(null);
+        setWebMapLoading(false);
+      } catch (err) {
+        if (cancelled) return;
+        leafletLoaderPromise = null;
+        setWebMapError(err?.message || 'Unable to load the map.');
+        setWebMapLoading(false);
+      }
+    };
+
+    if (!leafletMapRef.current) {
+      setWebMapLoading(true);
+    }
+
+    ensureMap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mapKey, points, region, openPostDetail]);
+
   if (loading && !points.length) {
     return (
       <View style={styles.center}>
@@ -244,37 +487,62 @@ export default function PostMapScreen({ navigation }) {
     );
   }
 
+  const mapContent = isWeb ? (
+    <View style={styles.webMapContainer}>
+      <View ref={mapContainerRef} style={styles.webMap} />
+      {webMapLoading ? (
+        <View style={styles.webMapStatusOverlay} pointerEvents="none">
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.webFallbackBody}>Loading map…</Text>
+        </View>
+      ) : null}
+      {webMapError ? (
+        <View style={styles.webMapStatusOverlay}>
+          <Feather name="alert-triangle" size={32} color={theme.colors.primary} />
+          <Text style={styles.webFallbackTitle}>Map unavailable</Text>
+          <Text style={styles.webFallbackBody}>{webMapError}</Text>
+        </View>
+      ) : null}
+    </View>
+  ) : (
+    <MapView key={mapKey} style={StyleSheet.absoluteFill} initialRegion={region}>
+      {points.map(({ post, coordinate, color, category }) => (
+        <NativeMarker key={post._id} coordinate={coordinate} pinColor={color}>
+          <Callout
+            onPress={() =>
+              navigation?.navigate?.('PostDetail', {
+                id: post._id,
+              })
+            }
+          >
+            <View style={styles.callout}>
+              <Text style={styles.calloutTitle} numberOfLines={1}>
+                {post.title || 'Untitled Post'}
+              </Text>
+              <Text style={styles.calloutCategory}>{category}</Text>
+              {post.content ? (
+                <Text style={styles.calloutBody} numberOfLines={2}>
+                  {post.content}
+                </Text>
+              ) : null}
+              {post.distanceKm !== undefined ? (
+                <Text style={styles.calloutMeta}>{post.distanceKm} km away</Text>
+              ) : null}
+              <Text style={styles.calloutHint}>Tap to open</Text>
+            </View>
+          </Callout>
+        </NativeMarker>
+      ))}
+    </MapView>
+  );
+
   return (
     <View style={styles.container}>
-      <MapView key={mapKey} style={StyleSheet.absoluteFill} initialRegion={region}>
-        {points.map(({ post, coordinate, color, category }) => (
-          <Marker key={post._id} coordinate={coordinate} pinColor={color}>
-            <Callout
-              onPress={() =>
-                navigation?.navigate?.('PostDetail', {
-                  id: post._id,
-                })
-              }
-            >
-              <View style={styles.callout}>
-                <Text style={styles.calloutTitle} numberOfLines={1}>
-                  {post.title || 'Untitled Post'}
-                </Text>
-                <Text style={styles.calloutCategory}>{category}</Text>
-                {post.content ? (
-                  <Text style={styles.calloutBody} numberOfLines={2}>
-                    {post.content}
-                  </Text>
-                ) : null}
-                {post.distanceKm !== undefined ? (
-                  <Text style={styles.calloutMeta}>{post.distanceKm} km away</Text>
-                ) : null}
-                <Text style={styles.calloutHint}>Tap to open</Text>
-              </View>
-            </Callout>
-          </Marker>
-        ))}
-      </MapView>
+      {mapContent}
+      <TouchableOpacity style={styles.backButton} onPress={navigateBack}>
+        <Feather name="chevron-left" size={18} color={theme.colors.text} />
+        <Text style={styles.backButtonLabel}>Back</Text>
+      </TouchableOpacity>
 
       <View style={styles.overlayTop}>
         <View style={styles.filterCard}>
@@ -397,6 +665,30 @@ const styles = StyleSheet.create({
     top: 24,
     left: 16,
     right: 16,
+    paddingTop: 56,
+    zIndex: 15,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 24,
+    left: 16,
+    zIndex: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  backButtonLabel: {
+    fontWeight: '600',
+    color: theme.colors.text,
   },
   filterCard: {
     backgroundColor: '#fff',
@@ -567,6 +859,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
     gap: 6,
+    zIndex: 12,
   },
   emptyTitle: {
     fontSize: 16,
@@ -593,6 +886,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     minWidth: 160,
     gap: 8,
+    zIndex: 12,
   },
   legendTitle: {
     fontWeight: '700',
@@ -611,6 +905,41 @@ const styles = StyleSheet.create({
   legendLabel: {
     color: theme.colors.sub,
     fontSize: 13,
+  },
+  webFallbackTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.text,
+    textAlign: 'center',
+  },
+  webFallbackBody: {
+    fontSize: 14,
+    color: theme.colors.sub,
+    textAlign: 'center',
+  },
+  webMapContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
+  webMap: {
+    width: '100%',
+    height: '100%',
+  },
+  webMapStatusOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    padding: 16,
   },
 });
 
