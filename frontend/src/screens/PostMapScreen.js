@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Callout, Marker } from 'react-native-maps';
+import MapView, { Callout, Marker as NativeMarker } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
 import { listPosts } from '../api';
 import { theme } from '../theme';
@@ -273,6 +273,55 @@ export default function PostMapScreen({ navigation }) {
       </View>
     );
   }
+
+  const mapContent = isWeb ? (
+    <View style={styles.webMapContainer}>
+      <View ref={mapContainerRef} style={styles.webMap} />
+      {webMapLoading ? (
+        <View style={styles.webMapStatusOverlay} pointerEvents="none">
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.webFallbackBody}>Loading map…</Text>
+        </View>
+      ) : null}
+      {webMapError ? (
+        <View style={styles.webMapStatusOverlay}>
+          <Feather name="alert-triangle" size={32} color={theme.colors.primary} />
+          <Text style={styles.webFallbackTitle}>Map unavailable</Text>
+          <Text style={styles.webFallbackBody}>{webMapError}</Text>
+        </View>
+      ) : null}
+    </View>
+  ) : (
+    <MapView key={mapKey} style={StyleSheet.absoluteFill} initialRegion={region}>
+      {points.map(({ post, coordinate, color, category }) => (
+        <NativeMarker key={post._id} coordinate={coordinate} pinColor={color}>
+          <Callout
+            onPress={() =>
+              navigation?.navigate?.('PostDetail', {
+                id: post._id,
+              })
+            }
+          >
+            <View style={styles.callout}>
+              <Text style={styles.calloutTitle} numberOfLines={1}>
+                {post.title || 'Untitled Post'}
+              </Text>
+              <Text style={styles.calloutCategory}>{category}</Text>
+              {post.content ? (
+                <Text style={styles.calloutBody} numberOfLines={2}>
+                  {post.content}
+                </Text>
+              ) : null}
+              {post.distanceKm !== undefined ? (
+                <Text style={styles.calloutMeta}>{post.distanceKm} km away</Text>
+              ) : null}
+              <Text style={styles.calloutHint}>Tap to open</Text>
+            </View>
+          </Callout>
+        </NativeMarker>
+      ))}
+    </MapView>
+  );
 
   return (
     <View style={styles.container}>
@@ -624,6 +673,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
     gap: 6,
+    zIndex: 12,
   },
   emptyTitle: {
     fontSize: 16,
@@ -650,6 +700,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     minWidth: 160,
     gap: 8,
+    zIndex: 12,
   },
   legendTitle: {
     fontWeight: '700',
