@@ -50,40 +50,76 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
       }
     : defaultRegion;
 
-  const handleSearch = useCallback(async () => {
+  const runSearch = useCallback(
+    async (
+      text,
+      { showEmptyError = false, autoSelectFirst = true, showNoResultsError = true } = {}
+    ) => {
+      const trimmed = text.trim();
+      if (!trimmed.length) {
+        setResults([]);
+        setLoading(false);
+        if (showEmptyError) {
+          setError('Enter an address to search.');
+        } else {
+          setError('');
+        }
+        return;
+      }
+      setLoading(true);
+      setError('');
+      try {
+        const geocoded = await geocodeAddress(trimmed);
+        const normalized = geocoded.map((item, index) => ({
+          id: `${item.latitude}-${item.longitude}-${index}`,
+          latitude: item.latitude,
+          longitude: item.longitude,
+          address: formatAddress(item) || trimmed,
+        }));
+        setResults(normalized);
+        if (normalized.length) {
+          if (autoSelectFirst) {
+            setSelected({ latitude: normalized[0].latitude, longitude: normalized[0].longitude });
+            setSelectedAddress(normalized[0].address);
+          }
+        } else {
+          if (showNoResultsError) {
+            setSelected(null);
+            setSelectedAddress('');
+            setError('No matches found. Try another search.');
+          } else {
+            setError('');
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to geocode query', err);
+        setResults([]);
+        setError('Unable to find that address. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  const handleSearch = useCallback(() => {
+    runSearch(query, { showEmptyError: true });
+  }, [query, runSearch]);
+
+  useEffect(() => {
+    if (!visible) return;
     const trimmed = query.trim();
     if (!trimmed.length) {
-      setError('Enter an address to search.');
       setResults([]);
+      setError('');
+      setLoading(false);
       return;
     }
-    setLoading(true);
-    setError('');
-    try {
-      const geocoded = await geocodeAddress(trimmed);
-      const normalized = geocoded.map((item, index) => ({
-        id: `${item.latitude}-${item.longitude}-${index}`,
-        latitude: item.latitude,
-        longitude: item.longitude,
-        address: formatAddress(item) || trimmed,
-      }));
-      setResults(normalized);
-      if (normalized.length) {
-        setSelected({ latitude: normalized[0].latitude, longitude: normalized[0].longitude });
-        setSelectedAddress(normalized[0].address);
-      } else {
-        setSelected(null);
-        setSelectedAddress('');
-        setError('No matches found. Try another search.');
-      }
-    } catch (err) {
-      console.warn('Failed to geocode query', err);
-      setResults([]);
-      setError('Unable to find that address. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [query]);
+    const timeout = setTimeout(() => {
+      runSearch(query, { autoSelectFirst: false, showNoResultsError: false });
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [query, runSearch, visible]);
 
   const handleResultPress = (item) => {
     setSelected({ latitude: item.latitude, longitude: item.longitude });
