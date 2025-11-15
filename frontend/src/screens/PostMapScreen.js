@@ -104,12 +104,43 @@ function escapeHtml(value) {
   });
 }
 
-function formatPopupBody(content) {
-  if (typeof content !== 'string') return '';
-  const trimmed = content.trim();
-  if (!trimmed) return '';
-  const truncated = trimmed.length > 220 ? `${trimmed.slice(0, 217)}…` : trimmed;
-  return escapeHtml(truncated).replace(/\n/g, '<br />');
+function formatPriceCandidate(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const formatted = value.toLocaleString(undefined, {
+      minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    });
+    return `$${formatted}`;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+  return null;
+}
+
+function getListingPrice(post) {
+  const candidates = [
+    post?.price,
+    post?.priceText,
+    post?.priceLabel,
+    post?.listingPrice,
+    post?.cost,
+    post?.amount,
+    post?.metadata?.price,
+    post?.details?.price,
+  ];
+
+  for (const candidate of candidates) {
+    const formatted = formatPriceCandidate(candidate);
+    if (formatted) {
+      return formatted;
+    }
+  }
+
+  return null;
 }
 
 function sanitizeId(value, fallback) {
@@ -121,23 +152,14 @@ function sanitizeId(value, fallback) {
 
 function createPopupHtml(post, category, color, buttonId) {
   const title = escapeHtml(post?.title || 'Untitled Post');
-  const categoryLabel = escapeHtml(category);
-  const body = formatPopupBody(post?.content);
-  const distance =
-    typeof post?.distanceKm === 'number'
-      ? `<div style="font-size:12px;color:#4B5563;">${escapeHtml(
-          `${post.distanceKm} km away`
-        )}</div>`
-      : '';
+  const price = escapeHtml(getListingPrice(post) || 'Price unavailable');
 
   return `
-    <div style="display:flex;flex-direction:column;gap:8px;min-width:200px;">
+    <div style="display:flex;flex-direction:column;gap:4px;min-width:200px;">
       <div style="font-weight:700;font-size:15px;color:#111827;">${title}</div>
-      <div style="font-weight:600;font-size:12px;color:${color};text-transform:capitalize;">${categoryLabel}</div>
-      ${body ? `<div style="font-size:13px;color:#374151;line-height:1.4;">${body}</div>` : ''}
-      ${distance}
+      <div style="font-weight:600;font-size:14px;color:${color};">${price}</div>
       <button id="${buttonId}" style="align-self:flex-start;background-color:${theme.colors.primary};color:#fff;border:none;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">View details</button>
-      <div style="font-size:11px;color:${theme.colors.primary};">Click the button to open this post</div>
+      <div style="font-size:11px;color:${theme.colors.primary};">Click to open listing</div>
     </div>
   `;
 }
@@ -577,33 +599,33 @@ export default function PostMapScreen({ navigation }) {
     </View>
   ) : (
     <MapView key={mapKey} style={StyleSheet.absoluteFill} initialRegion={region}>
-      {points.map(({ post, coordinate, color, category }) => (
-        <NativeMarker key={post._id} coordinate={coordinate} pinColor={color}>
-          <Callout
-            onPress={() =>
-              navigation?.navigate?.('PostDetail', {
-                id: post._id,
-              })
-            }
-          >
-            <View style={styles.callout}>
-              <Text style={styles.calloutTitle} numberOfLines={1}>
-                {post.title || 'Untitled Post'}
-              </Text>
-              <Text style={styles.calloutCategory}>{category}</Text>
-              {post.content ? (
-                <Text style={styles.calloutBody} numberOfLines={2}>
-                  {post.content}
-                </Text>
-              ) : null}
-              {post.distanceKm !== undefined ? (
-                <Text style={styles.calloutMeta}>{post.distanceKm} km away</Text>
-              ) : null}
-              <Text style={styles.calloutHint}>Tap to open</Text>
-            </View>
-          </Callout>
-        </NativeMarker>
-      ))}
+      {points.map(({ post, coordinate, color, category }) => {
+        const priceLabel = getListingPrice(post) || 'Price unavailable';
+        return (
+          <NativeMarker key={post._id} coordinate={coordinate} pinColor={color}>
+            <Callout
+              onPress={() =>
+                navigation?.navigate?.('PostDetail', {
+                  id: post._id,
+                })
+              }
+            >
+              <View style={styles.callout}>
+                <View style={styles.calloutHeader}>
+                  <Text style={styles.calloutTitle} numberOfLines={1}>
+                    {post.title || 'Untitled Post'}
+                  </Text>
+                  <Text style={styles.calloutPrice} numberOfLines={1}>
+                    {priceLabel}
+                  </Text>
+                </View>
+                <Text style={styles.calloutCategory}>{category}</Text>
+                <Text style={styles.calloutHint}>Tap to open</Text>
+              </View>
+            </Callout>
+          </NativeMarker>
+        );
+      })}
     </MapView>
   );
 
@@ -892,22 +914,26 @@ const styles = StyleSheet.create({
     maxWidth: 220,
     gap: 4,
   },
+  calloutHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   calloutTitle: {
     fontSize: 16,
     fontWeight: '700',
+    flex: 1,
+  },
+  calloutPrice: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.primary,
   },
   calloutCategory: {
     fontSize: 12,
     fontWeight: '600',
     color: theme.colors.primary,
-  },
-  calloutBody: {
-    fontSize: 14,
-    color: theme.colors.sub,
-  },
-  calloutMeta: {
-    fontSize: 12,
-    color: theme.colors.sub,
   },
   calloutHint: {
     fontSize: 12,
