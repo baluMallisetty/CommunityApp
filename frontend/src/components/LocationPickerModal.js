@@ -14,6 +14,7 @@ import * as Location from 'expo-location';
 import MapView, { Marker } from 'react-native-maps';
 
 import Button from '../ui/Button';
+import { geocodeAddress } from '../utils/geocoding';
 import { describeLocation, formatAddress } from '../utils/location';
 
 const defaultRegion = {
@@ -59,7 +60,7 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
     setLoading(true);
     setError('');
     try {
-      const geocoded = await Location.geocodeAsync(trimmed);
+      const geocoded = await geocodeAddress(trimmed);
       const normalized = geocoded.map((item, index) => ({
         id: `${item.latitude}-${item.longitude}-${index}`,
         latitude: item.latitude,
