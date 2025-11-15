@@ -21,6 +21,7 @@ import Field from '../ui/Field';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
 import LocationPickerModal from './LocationPickerModal';
+import { formatAddress, describeLocation } from '../utils/location';
 
 export default function CreatePostModal({ visible, onClose, onCreated }) {
   const [title, setTitle] = useState('');
@@ -85,7 +86,23 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
         return;
       }
       const { coords } = await Location.getCurrentPositionAsync({});
-      setLocation({ latitude: coords.latitude, longitude: coords.longitude });
+      let address = '';
+      try {
+        const geocoded = await Location.reverseGeocodeAsync({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        });
+        if (geocoded?.length) {
+          address = formatAddress(geocoded[0]);
+        }
+      } catch (error) {
+        console.warn('Unable to reverse geocode current location', error);
+      }
+      setLocation({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        address,
+      });
     } catch (e) {
       Alert.alert('Error', e.message || String(e));
     }
@@ -188,79 +205,47 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
             placeholder="What's on your mind, neighbor?"
             multiline
           />
-          {location ? (
-            Platform.OS === 'web' ? (
-              <View
-                style={{
-                  height: 150,
-                  marginBottom: 12,
-                  position: 'relative',
-                  borderWidth: 1,
-                  borderColor: '#ccc',
-                  justifyContent: 'center',
-                  alignItems: 'center',
+          <Field
+            label="Location"
+            value={location ? describeLocation(location) : ''}
+            placeholder="Tap to select a location"
+            editable={false}
+            onPress={() => setLocationPickerVisible(true)}
+          />
+          {Platform.OS === 'web' && location ? (
+            <TouchableOpacity onPress={() => setLocation(null)} style={{ marginBottom: 12 }}>
+              <Text style={{ color: '#DC2626', fontWeight: '600' }}>Clear location</Text>
+            </TouchableOpacity>
+          ) : null}
+          {Platform.OS !== 'web' && location ? (
+            <View style={{ height: 150, marginBottom: 12, position: 'relative' }}>
+              <MapView
+                style={{ flex: 1 }}
+                pointerEvents="none"
+                region={{
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                  latitudeDelta: 0.01,
+                  longitudeDelta: 0.01,
                 }}
               >
-                <Text>
-                  {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setLocation(null)}
-                  style={{
-                    position: 'absolute',
-                    top: 6,
-                    right: 6,
-                    backgroundColor: 'rgba(0,0,0,0.6)',
-                    borderRadius: 12,
-                    padding: 4,
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
+                <Marker coordinate={location} />
+              </MapView>
               <TouchableOpacity
-                onPress={() => setLocationPickerVisible(true)}
-                style={{ height: 150, marginBottom: 12, position: 'relative' }}
+                onPress={() => setLocation(null)}
+                style={{
+                  position: 'absolute',
+                  top: 6,
+                  right: 6,
+                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  borderRadius: 12,
+                  padding: 4,
+                }}
               >
-                <MapView
-                  style={{ flex: 1 }}
-                  region={{
-                    ...location,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                  }}
-                  pointerEvents="none"
-                >
-                  <Marker coordinate={location} />
-                </MapView>
-                <TouchableOpacity
-                  onPress={(e) => {
-                    e?.stopPropagation?.();
-                    setLocation(null);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: 6,
-                    right: 6,
-                    backgroundColor: 'rgba(0,0,0,0.6)',
-                    borderRadius: 12,
-                    padding: 4,
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
-                </TouchableOpacity>
+                <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
               </TouchableOpacity>
-            )
-          ) : (
-            <Field
-              label="Location"
-              value=""
-              placeholder="No location selected"
-              editable={false}
-              onPress={() => Platform.OS !== 'web' && setLocationPickerVisible(true)}
-            />
-          )}
+            </View>
+          ) : null}
           <View style={{ flexDirection: 'row', marginBottom: 12 }}>
             <Button
               title="Use Current Location"
@@ -313,14 +298,12 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
         item={preview !== null ? media[preview] : null}
         onClose={() => setPreview(null)}
       />
-      {Platform.OS !== 'web' && (
-        <LocationPickerModal
-          visible={locationPickerVisible}
-          initialLocation={location}
-          onSelect={setLocation}
-          onClose={() => setLocationPickerVisible(false)}
-        />
-      )}
+      <LocationPickerModal
+        visible={locationPickerVisible}
+        initialLocation={location}
+        onSelect={setLocation}
+        onClose={() => setLocationPickerVisible(false)}
+      />
     </Modal>
   );
 }
