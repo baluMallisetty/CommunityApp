@@ -18,6 +18,7 @@ expo-debug.log
 # Env & secrets
 .env
 .env.*
+!.env.example
 *.pid
 *.seed
 *.pid.lock
