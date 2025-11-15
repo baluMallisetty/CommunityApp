@@ -24,6 +24,38 @@ const defaultRegion = {
   longitudeDelta: 0.05,
 };
 
+const inferCountryFromLocation = (location) => {
+  if (!location) return null;
+  const name = location.country || null;
+  const code = location.countryCode || location.isoCountryCode || null;
+  if (name || code) {
+    return { name: name || null, code: code ? code.toUpperCase() : null };
+  }
+  if (typeof location.address === 'string') {
+    const parts = location.address
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length) {
+      return { name: parts[parts.length - 1], code: null };
+    }
+  }
+  return null;
+};
+
+const matchesCountryFilter = (countryFilter, item) => {
+  if (!countryFilter) return true;
+  const filterCode = countryFilter.code?.toUpperCase();
+  const filterName = countryFilter.name?.toLowerCase();
+  if (filterCode && item.countryCode) {
+    return item.countryCode.toUpperCase() === filterCode;
+  }
+  if (filterName && item.country) {
+    return item.country.toLowerCase() === filterName;
+  }
+  return true;
+};
+
 export default function LocationPickerModal({ visible, initialLocation, onSelect, onClose }) {
   const [selected, setSelected] = useState(initialLocation);
   const [selectedAddress, setSelectedAddress] = useState(initialLocation?.address || '');
@@ -31,6 +63,10 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [countryFilter, setCountryFilter] = useState(() => inferCountryFromLocation(initialLocation));
+  const [allowAutoCountryFilter, setAllowAutoCountryFilter] = useState(true);
+  const [hiddenResultsCount, setHiddenResultsCount] = useState(0);
+  const [lastRawResults, setLastRawResults] = useState([]);
 
   useEffect(() => {
     if (!visible) return;
@@ -39,6 +75,10 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
     setQuery('');
     setResults([]);
     setError('');
+    setHiddenResultsCount(0);
+    setLastRawResults([]);
+    setAllowAutoCountryFilter(true);
+    setCountryFilter(inferCountryFromLocation(initialLocation));
   }, [initialLocation, visible]);
 
   const region = selected
@@ -50,44 +90,126 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
       }
     : defaultRegion;
 
-  const handleSearch = useCallback(async () => {
+  const runSearch = useCallback(
+    async (
+      text,
+      { showEmptyError = false, autoSelectFirst = true, showNoResultsError = true } = {}
+    ) => {
+      const trimmed = text.trim();
+      if (!trimmed.length) {
+        setResults([]);
+        setLoading(false);
+        setHiddenResultsCount(0);
+        setLastRawResults([]);
+        if (showEmptyError) {
+          setError('Enter an address to search.');
+        } else {
+          setError('');
+        }
+        return;
+      }
+      setLoading(true);
+      setError('');
+      try {
+        const geocoded = await geocodeAddress(trimmed, {
+          countryCodes: countryFilter?.code ? [countryFilter.code] : undefined,
+        });
+        const normalized = geocoded.map((item, index) => {
+          const isoCode = item.countryCode || item.isoCountryCode || null;
+          return {
+            id: `${item.latitude}-${item.longitude}-${index}`,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            address: formatAddress(item) || trimmed,
+            country: item.country || null,
+            countryCode: isoCode ? isoCode.toUpperCase() : null,
+          };
+        });
+        setLastRawResults(normalized);
+
+        let effectiveCountryFilter = countryFilter;
+        if (!effectiveCountryFilter && allowAutoCountryFilter && normalized.length) {
+          const first = normalized[0];
+          if (first.country || first.countryCode) {
+            effectiveCountryFilter = {
+              name: first.country || null,
+              code: first.countryCode || null,
+            };
+            setCountryFilter(effectiveCountryFilter);
+          }
+        }
+
+        let filtered = normalized;
+        if (effectiveCountryFilter) {
+          filtered = normalized.filter((item) => matchesCountryFilter(effectiveCountryFilter, item));
+        }
+
+        if (effectiveCountryFilter && !filtered.length && normalized.length) {
+          filtered = normalized;
+          setCountryFilter(null);
+          setAllowAutoCountryFilter(false);
+        }
+
+        setHiddenResultsCount(Math.max(normalized.length - filtered.length, 0));
+        setResults(filtered);
+        if (filtered.length) {
+          if (autoSelectFirst) {
+            setSelected(filtered[0]);
+            setSelectedAddress(filtered[0].address);
+          }
+        } else {
+          if (showNoResultsError) {
+            setSelected(null);
+            setSelectedAddress('');
+            setError('No matches found. Try another search.');
+          } else {
+            setError('');
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to geocode query', err);
+        setResults([]);
+        setHiddenResultsCount(0);
+        setLastRawResults([]);
+        setError('Unable to find that address. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [allowAutoCountryFilter, countryFilter]
+  );
+
+  const handleSearch = useCallback(() => {
+    runSearch(query, { showEmptyError: true });
+  }, [query, runSearch]);
+
+  useEffect(() => {
+    if (!visible) return;
     const trimmed = query.trim();
     if (!trimmed.length) {
-      setError('Enter an address to search.');
       setResults([]);
+      setError('');
+      setLoading(false);
+      setHiddenResultsCount(0);
+      setLastRawResults([]);
       return;
     }
-    setLoading(true);
-    setError('');
-    try {
-      const geocoded = await geocodeAddress(trimmed);
-      const normalized = geocoded.map((item, index) => ({
-        id: `${item.latitude}-${item.longitude}-${index}`,
-        latitude: item.latitude,
-        longitude: item.longitude,
-        address: formatAddress(item) || trimmed,
-      }));
-      setResults(normalized);
-      if (normalized.length) {
-        setSelected({ latitude: normalized[0].latitude, longitude: normalized[0].longitude });
-        setSelectedAddress(normalized[0].address);
-      } else {
-        setSelected(null);
-        setSelectedAddress('');
-        setError('No matches found. Try another search.');
-      }
-    } catch (err) {
-      console.warn('Failed to geocode query', err);
-      setResults([]);
-      setError('Unable to find that address. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [query]);
+    const timeout = setTimeout(() => {
+      runSearch(query, { autoSelectFirst: false, showNoResultsError: false });
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [query, runSearch, visible]);
 
   const handleResultPress = (item) => {
-    setSelected({ latitude: item.latitude, longitude: item.longitude });
+    setSelected(item);
     setSelectedAddress(item.address);
+    if (item.country || item.countryCode) {
+      setCountryFilter({
+        name: item.country || null,
+        code: item.countryCode ? item.countryCode.toUpperCase() : null,
+      });
+      setAllowAutoCountryFilter(true);
+    }
   };
 
   const handleMapPress = async (coordinate) => {
@@ -95,7 +217,21 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
     try {
       const reverse = await Location.reverseGeocodeAsync(coordinate);
       if (reverse?.length) {
-        setSelectedAddress(formatAddress(reverse[0]));
+        const formatted = formatAddress(reverse[0]);
+        setSelected({
+          latitude: coordinate.latitude,
+          longitude: coordinate.longitude,
+          country: reverse[0].country,
+          countryCode: reverse[0].isoCountryCode ? reverse[0].isoCountryCode.toUpperCase() : null,
+        });
+        setSelectedAddress(formatted);
+        if (reverse[0].country || reverse[0].isoCountryCode) {
+          setCountryFilter({
+            name: reverse[0].country || null,
+            code: reverse[0].isoCountryCode ? reverse[0].isoCountryCode.toUpperCase() : null,
+          });
+          setAllowAutoCountryFilter(true);
+        }
       } else {
         setSelectedAddress('');
       }
@@ -112,6 +248,13 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
     }
     onSelect({ ...selected, address: selectedAddress });
     onClose();
+  };
+
+  const showAllCountries = () => {
+    setCountryFilter(null);
+    setHiddenResultsCount(0);
+    setAllowAutoCountryFilter(false);
+    setResults(lastRawResults);
   };
 
   const renderResult = ({ item }) => {
@@ -131,6 +274,8 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
       </TouchableOpacity>
     );
   };
+
+  const countryFilterLabel = countryFilter?.name || countryFilter?.code || '';
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -171,6 +316,20 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
         )}
         <View style={styles.resultsSection}>
           <Text style={styles.resultsHeading}>Results</Text>
+          {countryFilterLabel && !!results.length && (
+            <View style={styles.countryFilterBanner}>
+              <Text style={styles.countryFilterLabel}>
+                Showing suggestions in {countryFilterLabel}
+              </Text>
+              {hiddenResultsCount > 0 && (
+                <TouchableOpacity onPress={showAllCountries} style={{ marginTop: 8 }}>
+                  <Text style={styles.countryFilterAction}>
+                    Show other countries ({hiddenResultsCount})
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
           <FlatList
             data={results}
             keyExtractor={(item) => item.id}
@@ -185,6 +344,13 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
               )
             }
           />
+          {!countryFilterLabel && hiddenResultsCount > 0 && !!results.length && (
+            <TouchableOpacity onPress={showAllCountries} style={{ marginTop: 8 }}>
+              <Text style={styles.countryFilterAction}>
+                Show other countries ({hiddenResultsCount})
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={styles.footer}>
           <Button title="Cancel" onPress={onClose} style={{ flex: 1, marginRight: 8 }} />
@@ -246,6 +412,23 @@ const styles = StyleSheet.create({
   resultsHeading: {
     fontWeight: '600',
     marginBottom: 8,
+  },
+  countryFilterBanner: {
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  countryFilterLabel: {
+    color: '#1D4ED8',
+    fontWeight: '600',
+  },
+  countryFilterAction: {
+    color: '#2563EB',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   resultItem: {
     borderWidth: 1,

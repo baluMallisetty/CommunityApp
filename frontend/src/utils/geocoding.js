@@ -29,16 +29,24 @@ const toExpoLikeResult = (entry) => ({
   region: pickFirst(entry.address?.state, entry.address?.county),
   postalCode: entry.address?.postcode,
   country: entry.address?.country,
+  countryCode: entry.address?.country_code?.toUpperCase?.() || null,
 });
 
-export async function geocodeAddress(query) {
+export async function geocodeAddress(query, { countryCodes } = {}) {
   if (Platform.OS !== 'web') {
     return Location.geocodeAsync(query);
   }
 
-  const url = `${NOMINATIM_ENDPOINT}?format=json&limit=5&addressdetails=1&q=${encodeURIComponent(
-    query,
-  )}`;
+  const params = new URLSearchParams({
+    format: 'json',
+    limit: '5',
+    addressdetails: '1',
+    q: query,
+  });
+  if (countryCodes?.length) {
+    params.append('countrycodes', countryCodes.map((code) => code.toLowerCase()).join(','));
+  }
+  const url = `${NOMINATIM_ENDPOINT}?${params.toString()}`;
   const response = await fetch(url, {
     headers: {
       'User-Agent': 'CommunityMicrohelp/1.0 (contact@communityapp.local)',
