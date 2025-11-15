@@ -99,8 +99,6 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
       if (!trimmed.length) {
         setResults([]);
         setLoading(false);
-        setHiddenResultsCount(0);
-        setLastRawResults([]);
         if (showEmptyError) {
           setError('Enter an address to search.');
         } else {
@@ -111,51 +109,18 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
       setLoading(true);
       setError('');
       try {
-        const geocoded = await geocodeAddress(trimmed, {
-          countryCodes: countryFilter?.code ? [countryFilter.code] : undefined,
-        });
-        const normalized = geocoded.map((item, index) => {
-          const isoCode = item.countryCode || item.isoCountryCode || null;
-          return {
-            id: `${item.latitude}-${item.longitude}-${index}`,
-            latitude: item.latitude,
-            longitude: item.longitude,
-            address: formatAddress(item) || trimmed,
-            country: item.country || null,
-            countryCode: isoCode ? isoCode.toUpperCase() : null,
-          };
-        });
-        setLastRawResults(normalized);
-
-        let effectiveCountryFilter = countryFilter;
-        if (!effectiveCountryFilter && allowAutoCountryFilter && normalized.length) {
-          const first = normalized[0];
-          if (first.country || first.countryCode) {
-            effectiveCountryFilter = {
-              name: first.country || null,
-              code: first.countryCode || null,
-            };
-            setCountryFilter(effectiveCountryFilter);
-          }
-        }
-
-        let filtered = normalized;
-        if (effectiveCountryFilter) {
-          filtered = normalized.filter((item) => matchesCountryFilter(effectiveCountryFilter, item));
-        }
-
-        if (effectiveCountryFilter && !filtered.length && normalized.length) {
-          filtered = normalized;
-          setCountryFilter(null);
-          setAllowAutoCountryFilter(false);
-        }
-
-        setHiddenResultsCount(Math.max(normalized.length - filtered.length, 0));
-        setResults(filtered);
-        if (filtered.length) {
+        const geocoded = await geocodeAddress(trimmed);
+        const normalized = geocoded.map((item, index) => ({
+          id: `${item.latitude}-${item.longitude}-${index}`,
+          latitude: item.latitude,
+          longitude: item.longitude,
+          address: formatAddress(item) || trimmed,
+        }));
+        setResults(normalized);
+        if (normalized.length) {
           if (autoSelectFirst) {
-            setSelected(filtered[0]);
-            setSelectedAddress(filtered[0].address);
+            setSelected({ latitude: normalized[0].latitude, longitude: normalized[0].longitude });
+            setSelectedAddress(normalized[0].address);
           }
         } else {
           if (showNoResultsError) {
@@ -169,14 +134,12 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
       } catch (err) {
         console.warn('Failed to geocode query', err);
         setResults([]);
-        setHiddenResultsCount(0);
-        setLastRawResults([]);
         setError('Unable to find that address. Please try again.');
       } finally {
         setLoading(false);
       }
     },
-    [allowAutoCountryFilter, countryFilter]
+    []
   );
 
   const handleSearch = useCallback(() => {
@@ -190,8 +153,6 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
       setResults([]);
       setError('');
       setLoading(false);
-      setHiddenResultsCount(0);
-      setLastRawResults([]);
       return;
     }
     const timeout = setTimeout(() => {
