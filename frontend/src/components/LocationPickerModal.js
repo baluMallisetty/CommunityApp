@@ -24,6 +24,38 @@ const defaultRegion = {
   longitudeDelta: 0.05,
 };
 
+const inferCountryFromLocation = (location) => {
+  if (!location) return null;
+  const name = location.country || null;
+  const code = location.countryCode || location.isoCountryCode || null;
+  if (name || code) {
+    return { name: name || null, code: code ? code.toUpperCase() : null };
+  }
+  if (typeof location.address === 'string') {
+    const parts = location.address
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length) {
+      return { name: parts[parts.length - 1], code: null };
+    }
+  }
+  return null;
+};
+
+const matchesCountryFilter = (countryFilter, item) => {
+  if (!countryFilter) return true;
+  const filterCode = countryFilter.code?.toUpperCase();
+  const filterName = countryFilter.name?.toLowerCase();
+  if (filterCode && item.countryCode) {
+    return item.countryCode.toUpperCase() === filterCode;
+  }
+  if (filterName && item.country) {
+    return item.country.toLowerCase() === filterName;
+  }
+  return true;
+};
+
 export default function LocationPickerModal({ visible, initialLocation, onSelect, onClose }) {
   const [selected, setSelected] = useState(initialLocation);
   const [selectedAddress, setSelectedAddress] = useState(initialLocation?.address || '');
@@ -31,6 +63,10 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [countryFilter, setCountryFilter] = useState(() => inferCountryFromLocation(initialLocation));
+  const [allowAutoCountryFilter, setAllowAutoCountryFilter] = useState(true);
+  const [hiddenResultsCount, setHiddenResultsCount] = useState(0);
+  const [lastRawResults, setLastRawResults] = useState([]);
 
   useEffect(() => {
     if (!visible) return;
@@ -39,6 +75,10 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
     setQuery('');
     setResults([]);
     setError('');
+    setHiddenResultsCount(0);
+    setLastRawResults([]);
+    setAllowAutoCountryFilter(true);
+    setCountryFilter(inferCountryFromLocation(initialLocation));
   }, [initialLocation, visible]);
 
   const region = selected
@@ -122,8 +162,15 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
   }, [query, runSearch, visible]);
 
   const handleResultPress = (item) => {
-    setSelected({ latitude: item.latitude, longitude: item.longitude });
+    setSelected(item);
     setSelectedAddress(item.address);
+    if (item.country || item.countryCode) {
+      setCountryFilter({
+        name: item.country || null,
+        code: item.countryCode ? item.countryCode.toUpperCase() : null,
+      });
+      setAllowAutoCountryFilter(true);
+    }
   };
 
   const handleMapPress = async (coordinate) => {
@@ -131,7 +178,21 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
     try {
       const reverse = await Location.reverseGeocodeAsync(coordinate);
       if (reverse?.length) {
-        setSelectedAddress(formatAddress(reverse[0]));
+        const formatted = formatAddress(reverse[0]);
+        setSelected({
+          latitude: coordinate.latitude,
+          longitude: coordinate.longitude,
+          country: reverse[0].country,
+          countryCode: reverse[0].isoCountryCode ? reverse[0].isoCountryCode.toUpperCase() : null,
+        });
+        setSelectedAddress(formatted);
+        if (reverse[0].country || reverse[0].isoCountryCode) {
+          setCountryFilter({
+            name: reverse[0].country || null,
+            code: reverse[0].isoCountryCode ? reverse[0].isoCountryCode.toUpperCase() : null,
+          });
+          setAllowAutoCountryFilter(true);
+        }
       } else {
         setSelectedAddress('');
       }
@@ -148,6 +209,13 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
     }
     onSelect({ ...selected, address: selectedAddress });
     onClose();
+  };
+
+  const showAllCountries = () => {
+    setCountryFilter(null);
+    setHiddenResultsCount(0);
+    setAllowAutoCountryFilter(false);
+    setResults(lastRawResults);
   };
 
   const renderResult = ({ item }) => {
@@ -167,6 +235,8 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
       </TouchableOpacity>
     );
   };
+
+  const countryFilterLabel = countryFilter?.name || countryFilter?.code || '';
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -207,6 +277,20 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
         )}
         <View style={styles.resultsSection}>
           <Text style={styles.resultsHeading}>Results</Text>
+          {countryFilterLabel && !!results.length && (
+            <View style={styles.countryFilterBanner}>
+              <Text style={styles.countryFilterLabel}>
+                Showing suggestions in {countryFilterLabel}
+              </Text>
+              {hiddenResultsCount > 0 && (
+                <TouchableOpacity onPress={showAllCountries} style={{ marginTop: 8 }}>
+                  <Text style={styles.countryFilterAction}>
+                    Show other countries ({hiddenResultsCount})
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
           <FlatList
             data={results}
             keyExtractor={(item) => item.id}
@@ -221,6 +305,13 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
               )
             }
           />
+          {!countryFilterLabel && hiddenResultsCount > 0 && !!results.length && (
+            <TouchableOpacity onPress={showAllCountries} style={{ marginTop: 8 }}>
+              <Text style={styles.countryFilterAction}>
+                Show other countries ({hiddenResultsCount})
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={styles.footer}>
           <Button title="Cancel" onPress={onClose} style={{ flex: 1, marginRight: 8 }} />
@@ -282,6 +373,23 @@ const styles = StyleSheet.create({
   resultsHeading: {
     fontWeight: '600',
     marginBottom: 8,
+  },
+  countryFilterBanner: {
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  countryFilterLabel: {
+    color: '#1D4ED8',
+    fontWeight: '600',
+  },
+  countryFilterAction: {
+    color: '#2563EB',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   resultItem: {
     borderWidth: 1,
