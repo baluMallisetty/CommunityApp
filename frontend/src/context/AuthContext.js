@@ -54,9 +54,7 @@ export function AuthProvider({ children }) {
 
   const doSignup = async (email, username, password) => {
     // backend expects name; use username as default display name
-    await apiSignup({ tenantId: DEFAULT_TENANT_ID, email, username, password, name: username });
-    const me = await getMe();
-    setUser(me.user);
+    return apiSignup({ tenantId: DEFAULT_TENANT_ID, email, username, password, name: username });
   };
 
   const googleAvailable = GOOGLE_CLIENT_CONFIGURED;
