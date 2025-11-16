@@ -134,6 +134,17 @@ const loginSchema = z.object({
   password: z.string().min(8),
 });
 
+const requestResetSchema = z.object({
+  tenantId: z.string().min(1),
+  email: z.string().email(),
+});
+
+const confirmResetSchema = z.object({
+  tenantId: z.string().min(1),
+  token: z.string().min(10),
+  password: z.string().min(8),
+});
+
 function randomToken(n = 40) {
   const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   return Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
@@ -195,6 +206,12 @@ async function start() {
   await db.collection("favorites").createIndexes([
     { key: { tenantId: 1, postId: 1, userId: 1 }, unique: true },
     { key: { tenantId: 1, userId: 1, createdAt: -1 } },
+  ]);
+
+  // Password reset tokens (TTL on expiresAt cleans up automatically)
+  await db.collection("passwordResets").createIndexes([
+    { key: { tenantId: 1, token: 1 }, unique: true },
+    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
   ]);
 
   // Groups & membership
@@ -336,6 +353,74 @@ async function start() {
       });
       const { passwordHash, ...safeUser } = user;
       res.json({ token, user: safeUser });
+    } catch (e) {
+      logError(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/auth/password-reset/request", async (req, res) => {
+    try {
+      const parsed = requestResetSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
+      const { tenantId, email } = parsed.data;
+      const normalizedEmail = email.toLowerCase();
+
+      const users = db.collection("users");
+      const user = await users.findOne({ tenantId, email: normalizedEmail });
+
+      // always pretend success to avoid leaking which emails exist
+      if (!user) return res.json({ success: true });
+
+      const passwordResets = db.collection("passwordResets");
+      await passwordResets.deleteMany({ tenantId, email: normalizedEmail, usedAt: null });
+
+      const token = randomToken(48);
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 1000 * 60 * 30); // 30 minutes
+      await passwordResets.insertOne({
+        tenantId,
+        email: normalizedEmail,
+        token,
+        userId: user.userId,
+        createdAt: now,
+        expiresAt,
+        usedAt: null,
+      });
+
+      const response = { success: true };
+      if (ALLOW_UNSAFE) response.token = token;
+      res.json(response);
+    } catch (e) {
+      logError(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/auth/password-reset/confirm", async (req, res) => {
+    try {
+      const parsed = confirmResetSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
+      const { tenantId, token, password } = parsed.data;
+
+      const passwordResets = db.collection("passwordResets");
+      const reset = await passwordResets.findOne({ tenantId, token });
+      if (!reset || reset.usedAt) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+      if (reset.expiresAt && reset.expiresAt < new Date()) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+
+      const users = db.collection("users");
+      const user = await users.findOne({ tenantId, email: reset.email });
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      const passwordHash = await hashPassword(password);
+      await users.updateOne({ _id: user._id }, { $set: { passwordHash, updatedAt: new Date() } });
+      await passwordResets.updateOne({ _id: reset._id }, { $set: { usedAt: new Date() } });
+
+      res.json({ success: true });
     } catch (e) {
       logError(e);
       res.status(500).json({ error: e.message });

@@ -52,6 +52,10 @@ export default function LoginScreen({ navigation }) {
         <Text style={{ marginLeft: 8 }}>Remember me</Text>
       </View>
 
+      <Text style={styles.link} onPress={() => navigation.navigate('PasswordReset')}>
+        Forgot password?
+      </Text>
+
       {err ? <Text style={{ color: 'red', marginBottom: 8 }}>{err}</Text> : null}
 
       <Button title="Log in" onPress={onLogin} />
@@ -76,4 +80,5 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '800', marginBottom: 12 },
   input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 12, marginBottom: 10 },
   row: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  link: { textAlign: 'right', color: '#2563EB', marginBottom: 12, fontWeight: '600' },
 });
