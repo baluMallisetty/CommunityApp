@@ -162,6 +162,17 @@ const loginSchema = z.object({
   password: z.string().min(8),
 });
 
+const requestResetSchema = z.object({
+  tenantId: z.string().min(1),
+  email: z.string().email(),
+});
+
+const confirmResetSchema = z.object({
+  tenantId: z.string().min(1),
+  token: z.string().min(10),
+  password: z.string().min(8),
+});
+
 function randomToken(n = 40) {
   const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   return Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
@@ -223,6 +234,12 @@ async function start() {
   await db.collection("favorites").createIndexes([
     { key: { tenantId: 1, postId: 1, userId: 1 }, unique: true },
     { key: { tenantId: 1, userId: 1, createdAt: -1 } },
+  ]);
+
+  // Password reset tokens (TTL on expiresAt cleans up automatically)
+  await db.collection("passwordResets").createIndexes([
+    { key: { tenantId: 1, token: 1 }, unique: true },
+    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
   ]);
 
   // Groups & membership
@@ -370,171 +387,71 @@ async function start() {
     }
   });
 
-  const tenantIdForOAuth = DEFAULT_TENANT_ID;
-
-  async function ensureUsername(users, tenantId, rawBase) {
-    const cleanedBase = (rawBase || "member")
-      .toString()
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]/g, "");
-    const base = cleanedBase.length > 0 ? cleanedBase : `member${Math.floor(Math.random() * 1000)}`;
-    let candidate = base;
-    let suffix = 1;
-    while (await users.findOne({ tenantId, username: candidate })) {
-      candidate = `${base}${suffix++}`;
-    }
-    return candidate;
-  }
-
-  async function findOrCreateOAuthUser({ provider, providerId, email, name }) {
-    const users = db.collection("users");
-    const tenantId = tenantIdForOAuth;
-    const lowerEmail = email ? email.toLowerCase() : null;
-
-    let user = null;
-    if (lowerEmail) {
-      user = await users.findOne({ tenantId, email: lowerEmail });
-    }
-    if (!user) {
-      user = await users.findOne({
-        tenantId,
-        externalAccounts: { $elemMatch: { provider, providerId } },
-      });
-    }
-
-    const now = new Date();
-    if (!user) {
-      const usernameSeed = lowerEmail?.split("@")[0] || name || `${provider}_${providerId.slice(-6)}`;
-      const username = await ensureUsername(users, tenantId, usernameSeed);
-      const doc = {
-        userId: `${provider}:${tenantId}:${providerId}`,
-        tenantId,
-        role: "member",
-        email: lowerEmail,
-        username,
-        name: name || username,
-        providers: [provider],
-        externalAccounts: [{ provider, providerId }],
-        createdAt: now,
-        updatedAt: now,
-      };
-      await users.insertOne(doc);
-      user = doc;
-    } else {
-      const providerSet = new Set([...(user.providers || []), provider]);
-      const externalAccounts = Array.isArray(user.externalAccounts) ? [...user.externalAccounts] : [];
-      if (!externalAccounts.some((acc) => acc.provider === provider && acc.providerId === providerId)) {
-        externalAccounts.push({ provider, providerId });
-      }
-      const updates = {
-        providers: Array.from(providerSet),
-        externalAccounts,
-        updatedAt: now,
-      };
-      if (lowerEmail && lowerEmail !== user.email) updates.email = lowerEmail;
-      if (name && name !== user.name) updates.name = name;
-      await users.updateOne({ _id: user._id }, { $set: updates });
-      user = { ...user, ...updates };
-    }
-
-    const token = signToken({
-      userId: user.userId,
-      tenantId: user.tenantId,
-      role: user.role,
-      email: user.email,
-      name: user.name,
-    });
-    const { passwordHash, ...safeUser } = user;
-    return { token, user: safeUser };
-  }
-
-  app.post("/auth/oauth/google", async (req, res) => {
-    if (!googleOAuthClient) {
-      return res.status(503).json({ error: "Google login is not configured" });
-    }
-    const { idToken, accessToken } = req.body || {};
-    if (!idToken && !accessToken) {
-      return res.status(400).json({ error: "idToken or accessToken is required" });
-    }
+  app.post("/auth/password-reset/request", async (req, res) => {
     try {
-      let profile;
-      if (idToken) {
-        const ticket = await googleOAuthClient.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_ID });
-        const payload = ticket.getPayload();
-        if (!payload?.sub) throw new Error("Google token missing subject");
-        profile = {
-          provider: "google",
-          providerId: payload.sub,
-          email: payload.email,
-          name: payload.name || payload.email,
-        };
-      } else {
-        const response = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        if (!response.ok) {
-          throw new Error(`Google profile request failed (${response.status})`);
-        }
-        const payload = await response.json();
-        if (!payload?.sub) throw new Error("Google profile missing subject");
-        profile = {
-          provider: "google",
-          providerId: payload.sub,
-          email: payload.email,
-          name: payload.name || payload.email,
-        };
-      }
+      const parsed = requestResetSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
+      const { tenantId, email } = parsed.data;
+      const normalizedEmail = email.toLowerCase();
 
-      const result = await findOrCreateOAuthUser(profile);
-      res.json(result);
+      const users = db.collection("users");
+      const user = await users.findOne({ tenantId, email: normalizedEmail });
+
+      // always pretend success to avoid leaking which emails exist
+      if (!user) return res.json({ success: true });
+
+      const passwordResets = db.collection("passwordResets");
+      await passwordResets.deleteMany({ tenantId, email: normalizedEmail, usedAt: null });
+
+      const token = randomToken(48);
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 1000 * 60 * 30); // 30 minutes
+      await passwordResets.insertOne({
+        tenantId,
+        email: normalizedEmail,
+        token,
+        userId: user.userId,
+        createdAt: now,
+        expiresAt,
+        usedAt: null,
+      });
+
+      const response = { success: true };
+      if (ALLOW_UNSAFE) response.token = token;
+      res.json(response);
     } catch (e) {
       logError(e);
-      res.status(401).json({ error: "Google login failed" });
+      res.status(500).json({ error: e.message });
     }
   });
 
-  app.post("/auth/oauth/facebook", async (req, res) => {
-    if (!facebookAppToken) {
-      return res.status(503).json({ error: "Facebook login is not configured" });
-    }
-    const { accessToken } = req.body || {};
-    if (!accessToken) {
-      return res.status(400).json({ error: "accessToken is required" });
-    }
+  app.post("/auth/password-reset/confirm", async (req, res) => {
     try {
-      const debugResp = await fetch(
-        `https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${facebookAppToken}`
-      );
-      const debugData = await debugResp.json();
-      if (!debugResp.ok || !debugData?.data?.is_valid) {
-        return res.status(401).json({ error: "Invalid Facebook token" });
+      const parsed = confirmResetSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
+      const { tenantId, token, password } = parsed.data;
+
+      const passwordResets = db.collection("passwordResets");
+      const reset = await passwordResets.findOne({ tenantId, token });
+      if (!reset || reset.usedAt) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+      if (reset.expiresAt && reset.expiresAt < new Date()) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
       }
 
-      const profileResp = await fetch(
-        "https://graph.facebook.com/v17.0/me?fields=id,name,email",
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      );
-      if (!profileResp.ok) {
-        throw new Error(`Facebook profile request failed (${profileResp.status})`);
-      }
-      const profileData = await profileResp.json();
-      if (!profileData?.id) {
-        throw new Error("Facebook profile missing id");
-      }
+      const users = db.collection("users");
+      const user = await users.findOne({ tenantId, email: reset.email });
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-      const result = await findOrCreateOAuthUser({
-        provider: "facebook",
-        providerId: profileData.id,
-        email: profileData.email,
-        name: profileData.name,
-      });
-      res.json(result);
+      const passwordHash = await hashPassword(password);
+      await users.updateOne({ _id: user._id }, { $set: { passwordHash, updatedAt: new Date() } });
+      await passwordResets.updateOne({ _id: reset._id }, { $set: { usedAt: new Date() } });
+
+      res.json({ success: true });
     } catch (e) {
       logError(e);
-      res.status(401).json({ error: "Facebook login failed" });
+      res.status(500).json({ error: e.message });
     }
   });
 
