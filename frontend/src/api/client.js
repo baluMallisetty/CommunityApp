@@ -48,7 +48,16 @@ export async function request(path, { method = 'GET', headers = {}, body, raw = 
     if (raw) return res;
     if (!res.ok) {
       const text = await res.text();
-      const err = new Error(text || `HTTP ${res.status}`);
+      let message = text || `HTTP ${res.status}`;
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed.error === 'string') {
+          message = parsed.error;
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+      const err = new Error(message);
       err.status = res.status;
       throw err;
     }
