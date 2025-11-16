@@ -67,12 +67,16 @@ export default function LoginScreen({ navigation }) {
 
       <Button title="Continue with Google" onPress={() => googlePrompt()} disabled={!googleAvailable} />
       {!googleAvailable ? (
-        <Text style={styles.disabledNote}>Set EXPO_PUBLIC_GOOGLE_CLIENT_ID to enable Google login.</Text>
+        <Text style={styles.disabledNote}>
+          Set EXPO_PUBLIC_GOOGLE_CLIENT_ID (frontend) and GOOGLE_CLIENT_ID (backend) to enable Google login.
+        </Text>
       ) : null}
       <View style={{ height: 8 }} />
       <Button title="Continue with Facebook" onPress={() => fbPrompt()} disabled={!facebookAvailable} />
       {!facebookAvailable ? (
-        <Text style={styles.disabledNote}>Set EXPO_PUBLIC_FACEBOOK_APP_ID to enable Facebook login.</Text>
+        <Text style={styles.disabledNote}>
+          Set EXPO_PUBLIC_FACEBOOK_APP_ID (frontend) and FACEBOOK_APP_ID/SECRET (backend) to enable Facebook login.
+        </Text>
       ) : null}
       <View style={{ height: 8 }} />
       {Platform.OS === 'ios' ? <Button title="Continue with Apple" onPress={doAppleLogin} /> : null}
