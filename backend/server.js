@@ -17,6 +17,10 @@
 // ALLOW_UNSAFE=true
 // PASSWORD_PEPPER=
 // MAX_DOCS=500
+// DEFAULT_TENANT_ID=t123
+// GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+// FACEBOOK_APP_ID=123456789012345
+// FACEBOOK_APP_SECRET=replace_with_facebook_secret
 //
 // Run: node server.js
 
@@ -31,6 +35,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import jwt from "jsonwebtoken";
+import { OAuth2Client } from "google-auth-library";
+import { fetch } from "undici";
 
 dotenv.config();
 
@@ -40,6 +46,28 @@ const MAX_DOCS = parseInt(process.env.MAX_DOCS || "500", 10);
 const ALLOW_UNSAFE = (process.env.ALLOW_UNSAFE || "false") === "true";
 const JWT_SECRET = process.env.JWT_SECRET || "changeme";
 const PASSWORD_PEPPER = process.env.PASSWORD_PEPPER || "";
+const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || "t123";
+
+const GOOGLE_CLIENT_ID_PLACEHOLDER = "your_google_client_id.apps.googleusercontent.com";
+const FACEBOOK_APP_ID_PLACEHOLDER = "123456789012345";
+
+const hasRealValue = (value, placeholder) =>
+  typeof value === "string" && value.trim().length > 0 && (placeholder ? value !== placeholder : true);
+
+const GOOGLE_CLIENT_ID = hasRealValue(process.env.GOOGLE_CLIENT_ID, GOOGLE_CLIENT_ID_PLACEHOLDER)
+  ? process.env.GOOGLE_CLIENT_ID
+  : "";
+const FACEBOOK_APP_ID = hasRealValue(process.env.FACEBOOK_APP_ID, FACEBOOK_APP_ID_PLACEHOLDER)
+  ? process.env.FACEBOOK_APP_ID
+  : "";
+const FACEBOOK_APP_SECRET = hasRealValue(process.env.FACEBOOK_APP_SECRET)
+  ? process.env.FACEBOOK_APP_SECRET
+  : "";
+
+const googleOAuthClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+const facebookAppToken = FACEBOOK_APP_ID && FACEBOOK_APP_SECRET
+  ? `${FACEBOOK_APP_ID}|${FACEBOOK_APP_SECRET}`
+  : null;
 const BCRYPT_ROUNDS = 10;
 
 // absolute base URL for local dev

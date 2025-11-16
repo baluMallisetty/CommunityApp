@@ -6,7 +6,14 @@ import Button from '../ui/Button';
 import { loadRememberLogin, saveRememberLogin } from '../api/credentials';
 
 export default function LoginScreen({ navigation }) {
-  const { doLogin, googlePrompt, fbPrompt, doAppleLogin } = useContext(AuthContext);
+  const {
+    doLogin,
+    googlePrompt,
+    fbPrompt,
+    doAppleLogin,
+    googleAvailable,
+    facebookAvailable,
+  } = useContext(AuthContext);
 
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -62,9 +69,19 @@ export default function LoginScreen({ navigation }) {
 
       <Text style={{ marginVertical: 12, textAlign: 'center', color: '#6B7280' }}>or</Text>
 
-      <Button title="Continue with Google" onPress={() => googlePrompt()} />
+      <Button title="Continue with Google" onPress={() => googlePrompt()} disabled={!googleAvailable} />
+      {!googleAvailable ? (
+        <Text style={styles.disabledNote}>
+          Set EXPO_PUBLIC_GOOGLE_CLIENT_ID (frontend) and GOOGLE_CLIENT_ID (backend) to enable Google login.
+        </Text>
+      ) : null}
       <View style={{ height: 8 }} />
-      <Button title="Continue with Facebook" onPress={() => fbPrompt()} />
+      <Button title="Continue with Facebook" onPress={() => fbPrompt()} disabled={!facebookAvailable} />
+      {!facebookAvailable ? (
+        <Text style={styles.disabledNote}>
+          Set EXPO_PUBLIC_FACEBOOK_APP_ID (frontend) and FACEBOOK_APP_ID/SECRET (backend) to enable Facebook login.
+        </Text>
+      ) : null}
       <View style={{ height: 8 }} />
       {Platform.OS === 'ios' ? <Button title="Continue with Apple" onPress={doAppleLogin} /> : null}
 
