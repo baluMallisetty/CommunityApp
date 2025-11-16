@@ -1,7 +1,7 @@
 // src/config.js
 const env = typeof process !== 'undefined' && process.env ? process.env : {};
 
-const DEFAULT_API_BASE = 'http://localhost:3001'; // Android emulator: 'http://10.0.2.2:3001'
+const DEFAULT_API_BASE = 'https://6e2bba54699c.ngrok-free.app' || 'http://localhost:3001'; // Android emulator: 'http://10.0.2.2:3001'
 const DEFAULT_TENANT = 't123';
 const GOOGLE_CLIENT_ID_PLACEHOLDER = 'your_google_client_id.apps.googleusercontent.com';
 const FACEBOOK_APP_ID_PLACEHOLDER = '123456789012345';

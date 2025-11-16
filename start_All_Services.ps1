@@ -23,6 +23,6 @@ Stop-If-Port-In-Use -port 8081      # Metro Bundler
 Start-Process powershell -ArgumentList "cd ./backend; npm start" -NoNewWindow
 
 # Start frontend (Expo web)
-Start-Process powershell -ArgumentList "cd ./frontend; npx expo start --web" -NoNewWindow
+Start-Process powershell -ArgumentList "cd ./frontend; npx expo start --tunnel" -NoNewWindow #-web
 
 Write-Host "Backend and Frontend started (or restarted cleanly)"
