@@ -22,3 +22,7 @@ cp .env.example .env
 `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY` enables the Google Places-powered address picker. Supply a client-side key with the Places API enabled to get higher quality autocomplete suggestions everywhere (web and native). When the key is missing, the app falls back to Expo's native geocoder on mobile and the OpenStreetMap-backed web implementation described below.
 
 `EXPO_PUBLIC_NOMINATIM_ENDPOINT` controls which Nominatim-compatible endpoint is used when geocoding on the web if a Google Places key is not available. The value defaults to the public OpenStreetMap instance (`https://nominatim.openstreetmap.org/search`) when the variable is not set.
+
+## Local development without network access
+
+`npm start` (and therefore `expo start`) runs in Expo's offline mode so Metro no longer tries to fetch native module metadata from `https://api.expo.dev`. This avoids the "request to .../native-modules failed" crash that happens in environments without outbound internet. If you need the regular online workflow, run `npx expo start --online` instead.
