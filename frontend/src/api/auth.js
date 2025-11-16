@@ -4,9 +4,7 @@ import { saveTokens, clearTokens, getTokens } from './tokenStore';
 
 // --- Custom auth ---
 export async function signup({ tenantId, email, username, password, name }) {
-  const data = await request('/auth/signup', { method: 'POST', body: { tenantId, email, username, password, name }, auth: false });
-  await persistTokensFromAuthResponse(data);
-  return data;
+  return request('/auth/signup', { method: 'POST', body: { tenantId, email, username, password, name }, auth: false });
 }
 
 export async function login({ tenantId, emailOrUsername, password }) {
