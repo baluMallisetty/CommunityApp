@@ -18,6 +18,8 @@
 // PASSWORD_PEPPER=
 // MAX_DOCS=500
 // DEFAULT_TENANT_ID=t123
+// VERBOSE_LOGGING=true
+// LOG_LEVEL=debug
 // GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
 // FACEBOOK_APP_ID=123456789012345
 // FACEBOOK_APP_SECRET=replace_with_facebook_secret
@@ -37,6 +39,7 @@ import fs from "fs";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import { fetch } from "undici";
+import { logger, VERBOSE_LOGGING } from "./logger.js";
 
 dotenv.config();
 
@@ -73,22 +76,12 @@ const BCRYPT_ROUNDS = 10;
 // absolute base URL for local dev
 const PUBLIC_BASE_URL = `http://localhost:${PORT}`;
 
-const VERBOSE_LOGGING = (process.env.VERBOSE_LOGGING || "false") === "true";
-const LOG_DIR = path.join(process.cwd(), "logs");
-if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
-const LOG_STREAM = fs.createWriteStream(path.join(LOG_DIR, "server.log"), { flags: "a" });
-
 function logError(err, priority = "P2") {
   const message = err && err.message ? err.message : String(err);
-  const entry = {
-    time: new Date().toISOString(),
-    level: "error",
+  logger.error(priority === "P1" ? `P1: ${message}` : message, {
     priority,
-    message: priority === "P1" ? `P1: ${message}` : message,
     stack: err && err.stack ? err.stack : undefined,
-  };
-  LOG_STREAM.write(JSON.stringify(entry) + "\n");
-  console.error(entry.message, entry.stack || "");
+  });
 }
 
 process.on("uncaughtException", (err) => logError(err, "P1"));
@@ -295,24 +288,23 @@ async function start() {
       return originalSend(body);
     };
     res.on("finish", () => {
-      const entry = {
-        time: new Date().toISOString(),
+      const meta = {
         method: req.method,
         url: req.originalUrl,
         status: res.statusCode,
         durationMs: Date.now() - start,
       };
       if (VERBOSE_LOGGING) {
-        entry.request = {
+        meta.request = {
           headers: sanitize(req.headers),
           query: sanitize(req.query),
           body: sanitize(req.body),
         };
         let respBody = res.locals.body;
         if (typeof respBody === "object") respBody = sanitize(respBody);
-        entry.response = respBody;
+        meta.response = respBody;
       }
-      LOG_STREAM.write(JSON.stringify(entry) + "\n");
+      logger.info(`HTTP ${req.method} ${req.originalUrl}`, meta);
     });
     next();
   });
@@ -1031,7 +1023,7 @@ async function start() {
 
   // ---------- Start ----------
   app.listen(PORT, () => {
-    console.log(`API running on ${PUBLIC_BASE_URL}`);
+    logger.info(`API running on ${PUBLIC_BASE_URL}`);
   });
 }
 
@@ -1040,7 +1032,7 @@ async function bootstrap() {
     await start();
   } catch (e) {
     logError(e, "P1");
-    console.log("Retrying startup in 5s...");
+    logger.warn("Retrying startup in 5s...");
     setTimeout(bootstrap, 5000);
   }
 }
