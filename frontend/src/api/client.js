@@ -31,12 +31,14 @@ async function refreshAccessToken() {
   finally { refreshing = null; }
 }
 
-export async function request(path, { method = 'GET', headers = {}, body, raw = false } = {}) {
+export async function request(path, { method = 'GET', headers = {}, body, raw = false, auth = true } = {}) {
   const doFetch = async () => {
-    const tokens = await getTokens();
     let authHeader = {};
-    if (tokens?.accessToken) {
-      authHeader = { Authorization: `Bearer ${tokens.accessToken}` };
+    if (auth) {
+      const tokens = await getTokens();
+      if (tokens?.accessToken) {
+        authHeader = { Authorization: `Bearer ${tokens.accessToken}` };
+      }
     }
     const res = await fetch(`${BASE_URL}${path}`, {
       method,
@@ -54,15 +56,17 @@ export async function request(path, { method = 'GET', headers = {}, body, raw = 
   };
 
   try {
-    // proactive refresh if we have exp and it's close
-    const tokens = await getTokens();
-    if (tokens?.accessToken && isAccessTokenExpired(tokens.expiresAt)) {
-      await refreshAccessToken();
+    if (auth) {
+      // proactive refresh if we have exp and it's close
+      const tokens = await getTokens();
+      if (tokens?.accessToken && isAccessTokenExpired(tokens.expiresAt)) {
+        await refreshAccessToken();
+      }
     }
     return await doFetch();
   } catch (err) {
     // on 401, try a refresh once and retry the original request
-    if (err.status === 401) {
+    if (auth && err.status === 401) {
       try {
         await refreshAccessToken();
         return await doFetch();
