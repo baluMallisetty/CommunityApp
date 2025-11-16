@@ -14,6 +14,7 @@ export default function PasswordResetScreen({ navigation }) {
   const [requesting, setRequesting] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [canConfirm, setCanConfirm] = useState(false);
+  const [resetUrl, setResetUrl] = useState('');
 
   const handleRequest = async () => {
     setError('');
@@ -23,14 +24,20 @@ export default function PasswordResetScreen({ navigation }) {
       return;
     }
     setRequesting(true);
+    setResetUrl('');
+    setCanConfirm(false);
+    setToken('');
     try {
       const resp = await requestPasswordReset({ tenantId: DEFAULT_TENANT_ID, email });
-      setCanConfirm(true);
-      if (resp?.token) {
+      const baseMessage = resp?.message || 'If an account exists for that email, check your inbox for the reset link.';
+      setMessage(`${baseMessage} Follow the link from the email to finish in your browser.`);
+      const hasToken = Boolean(resp?.token);
+      setCanConfirm(hasToken);
+      if (hasToken) {
         setToken(resp.token);
-        setMessage('Use the token shown below to finish resetting your password.');
-      } else {
-        setMessage('If an account exists for that email, check your inbox for the reset link.');
+      }
+      if (resp?.resetUrl) {
+        setResetUrl(resp.resetUrl);
       }
     } catch (e) {
       setError(e.message || String(e));
@@ -75,11 +82,15 @@ export default function PasswordResetScreen({ navigation }) {
       />
       <Button title="Send reset link" onPress={handleRequest} loading={requesting} />
 
+      {resetUrl ? (
+        <Text selectable style={styles.tokenBox}>Reset URL (dev only): {resetUrl}</Text>
+      ) : null}
+
       {canConfirm ? (
         <View style={{ marginTop: 24 }}>
           <Text style={styles.subtitle}>Have a reset token?</Text>
           <Text style={styles.description}>Enter it below along with your new password.</Text>
-          {token ? <Text style={styles.tokenBox}>{token}</Text> : null}
+          {token ? <Text selectable style={styles.tokenBox}>{token}</Text> : null}
           <TextInput
             style={styles.input}
             placeholder="Reset token"

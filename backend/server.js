@@ -75,6 +75,8 @@ const BCRYPT_ROUNDS = 10;
 
 // absolute base URL for local dev
 const PUBLIC_BASE_URL = `http://localhost:${PORT}`;
+const PASSWORD_RESET_TTL_MS = 1000 * 60 * 30; // 30 minutes
+const EMAIL_VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 
 function logError(err, priority = "P2") {
   const message = err && err.message ? err.message : String(err);
@@ -166,6 +168,16 @@ const confirmResetSchema = z.object({
   password: z.string().min(8),
 });
 
+const resendVerificationSchema = z.object({
+  tenantId: z.string().min(1),
+  email: z.string().email(),
+});
+
+const confirmEmailSchema = z.object({
+  tenantId: z.string().min(1),
+  token: z.string().min(10),
+});
+
 function randomToken(n = 40) {
   const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   return Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
@@ -182,6 +194,94 @@ function sanitize(obj) {
     }
   }
   return result;
+}
+
+function escapeHtml(str = "") {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderSimplePage({ title, message, success }) {
+  return `<!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>${escapeHtml(title)}</title>
+      <style>
+        :root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; color: #111827; }
+        body { margin: 0; padding: 24px; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .card { background: white; padding: 32px; border-radius: 16px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1); max-width: 420px; }
+        h1 { font-size: 24px; margin-bottom: 16px; }
+        p { line-height: 1.5; }
+        .status { font-weight: 600; color: ${success ? "#059669" : "#b91c1c"}; }
+        form { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+        input[type="password"] { padding: 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 16px; }
+        button { padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; background: #2563eb; color: white; cursor: pointer; }
+        button:disabled { background: #9ca3af; cursor: not-allowed; }
+      </style>
+    </head>
+    <body>
+      <main class="card">
+        <h1>${escapeHtml(title)}</h1>
+        <p class="status">${escapeHtml(message)}</p>
+      </main>
+    </body>
+  </html>`;
+}
+
+function renderPasswordResetPage({ token, error, success }) {
+  const title = success ? "Password updated" : "Reset your password";
+  const statusMsg = success
+    ? "Your password has been updated. You can now return to the app and sign in with the new password."
+    : "Enter your new password below. This reset link expires shortly, so complete the process now.";
+  return `<!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>${escapeHtml(title)}</title>
+      <style>
+        :root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; color: #111827; }
+        body { margin: 0; padding: 24px; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .card { background: white; padding: 32px; border-radius: 16px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1); max-width: 440px; width: 100%; }
+        h1 { font-size: 24px; margin-bottom: 16px; }
+        p { line-height: 1.5; }
+        .status { font-weight: 600; color: ${success ? "#059669" : "#111827"}; margin-bottom: 12px; }
+        .error { color: #b91c1c; font-weight: 600; margin-bottom: 12px; }
+        form { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+        input[type="password"] { padding: 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 16px; }
+        button { padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; background: #2563eb; color: white; cursor: pointer; }
+        button:disabled { background: #9ca3af; cursor: not-allowed; }
+      </style>
+    </head>
+    <body>
+      <main class="card">
+        <h1>${escapeHtml(title)}</h1>
+        <p class="status">${escapeHtml(statusMsg)}</p>
+        ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
+        ${success
+          ? "<p>It is now safe to close this tab.</p>"
+          : `<form method="POST">
+              <label>
+                <span>New password</span>
+                <input type="password" name="password" placeholder="At least 8 characters" required minlength="8" />
+              </label>
+              <button type="submit">Update password</button>
+            </form>`}
+      </main>
+    </body>
+  </html>`;
+}
+
+function badRequestError(message) {
+  const err = new Error(message);
+  err.status = 400;
+  return err;
 }
 
 // ---------- App bootstrap ----------
@@ -235,6 +335,11 @@ async function start() {
     { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
   ]);
 
+  await db.collection("emailVerifications").createIndexes([
+    { key: { tenantId: 1, token: 1 }, unique: true },
+    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
+  ]);
+
   // Groups & membership
   await db.collection("groups").createIndexes([
     { key: { tenantId: 1, slug: 1 }, unique: true },
@@ -277,9 +382,62 @@ async function start() {
   const app = express();
   app.locals.db = db;
 
+  async function verifyEmailToken({ token, tenantId }) {
+    const emailVerifications = db.collection("emailVerifications");
+    const users = db.collection("users");
+
+    const query = tenantId ? { tenantId, token } : { token };
+    const record = await emailVerifications.findOne(query);
+    if (!record || record.usedAt) {
+      throw badRequestError("Invalid or expired verification link");
+    }
+    if (record.expiresAt && record.expiresAt < new Date()) {
+      throw badRequestError("Invalid or expired verification link");
+    }
+
+    const user = await users.findOne({ tenantId: record.tenantId, userId: record.userId });
+    if (!user) throw badRequestError("Account not found");
+
+    const now = new Date();
+    await users.updateOne(
+      { _id: user._id },
+      { $set: { emailVerified: true, emailVerifiedAt: now, updatedAt: now } }
+    );
+    await emailVerifications.updateOne({ _id: record._id }, { $set: { usedAt: now } });
+    await emailVerifications.deleteMany({ tenantId: record.tenantId, userId: record.userId, usedAt: null, token: { $ne: record.token } });
+
+    return { email: record.email, tenantId: record.tenantId };
+  }
+
+  async function applyPasswordReset({ token, password, tenantId }) {
+    const passwordResets = db.collection("passwordResets");
+    const users = db.collection("users");
+
+    const query = tenantId ? { token, tenantId } : { token };
+    const reset = await passwordResets.findOne(query);
+    if (!reset || reset.usedAt) {
+      throw badRequestError("Invalid or expired reset token");
+    }
+    if (reset.expiresAt && reset.expiresAt < new Date()) {
+      throw badRequestError("Invalid or expired reset token");
+    }
+
+    const user = await users.findOne({ tenantId: reset.tenantId, email: reset.email });
+    if (!user) {
+      throw badRequestError("User not found");
+    }
+
+    const passwordHash = await hashPassword(password);
+    await users.updateOne({ _id: user._id }, { $set: { passwordHash, updatedAt: new Date() } });
+    await passwordResets.updateOne({ _id: reset._id }, { $set: { usedAt: new Date() } });
+
+    return { email: reset.email, tenantId: reset.tenantId };
+  }
+
   // Middlewares
   app.use(cors());
   app.use(express.json({ limit: "5mb" }));
+  app.use(express.urlencoded({ extended: false }));
   app.use((req, res, next) => {
     const start = Date.now();
     const originalSend = res.send.bind(res);
@@ -318,31 +476,58 @@ async function start() {
       const { tenantId, email, username, password, name } = parsed.data;
 
       const users = db.collection("users");
+      const emailVerifications = db.collection("emailVerifications");
+      const normalizedEmail = email.toLowerCase();
+      const normalizedUsername = username.toLowerCase();
+
       const exists = await users.findOne({
         tenantId,
-        $or: [{ email: email.toLowerCase() }, { username: username.toLowerCase() }],
+        $or: [{ email: normalizedEmail }, { username: normalizedUsername }],
       });
       if (exists) return res.status(409).json({ error: "Email or username already in use" });
 
       const passwordHash = await hashPassword(password);
-      const userId = `local:${tenantId}:${email.toLowerCase()}`;
+      const userId = `local:${tenantId}:${normalizedEmail}`;
       const now = new Date();
       const doc = {
-        userId, tenantId,
-        email: email.toLowerCase(),
-        username: username.toLowerCase(),
+        userId,
+        tenantId,
+        email: normalizedEmail,
+        username: normalizedUsername,
         name,
         role: "member",
         providers: ["local"],
         passwordHash,
+        emailVerified: false,
+        emailVerifiedAt: null,
         createdAt: now,
         updatedAt: now,
       };
       await users.insertOne(doc);
-      const token = signToken({
-        userId: doc.userId, tenantId: doc.tenantId, role: doc.role, email: doc.email, name: doc.name,
+
+      await emailVerifications.deleteMany({ tenantId, userId, usedAt: null });
+      const verificationToken = randomToken(48);
+      const expiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_TTL_MS);
+      await emailVerifications.insertOne({
+        tenantId,
+        userId,
+        email: normalizedEmail,
+        token: verificationToken,
+        createdAt: now,
+        expiresAt,
+        usedAt: null,
       });
-      res.status(201).json({ token, user: { ...doc, passwordHash: undefined } });
+
+      const verificationLink = `${PUBLIC_BASE_URL}/email-verification/${verificationToken}`;
+      const response = {
+        success: true,
+        requiresEmailVerification: true,
+        message: "Account created. Please verify your email before logging in.",
+      };
+      if (ALLOW_UNSAFE) {
+        response.debug = { verificationToken, verificationLink };
+      }
+      res.status(201).json(response);
     } catch (e) {
       logError(e);
       res.status(500).json({ error: e.message });
@@ -368,6 +553,10 @@ async function start() {
       const ok = await verifyPassword(password, user.passwordHash);
       if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
+      if (user.emailVerified === false) {
+        return res.status(403).json({ error: "Email verification required", code: "EMAIL_NOT_VERIFIED" });
+      }
+
       const token = signToken({
         userId: user.userId, tenantId: user.tenantId, role: user.role, email: user.email, name: user.name,
       });
@@ -376,6 +565,73 @@ async function start() {
     } catch (e) {
       logError(e);
       res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/auth/email-verification/resend", async (req, res) => {
+    try {
+      const parsed = resendVerificationSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
+      const { tenantId, email } = parsed.data;
+      const normalizedEmail = email.toLowerCase();
+
+      const users = db.collection("users");
+      const emailVerifications = db.collection("emailVerifications");
+      const user = await users.findOne({ tenantId, email: normalizedEmail });
+      if (!user || user.emailVerified === true) {
+        return res.json({ success: true });
+      }
+
+      await emailVerifications.deleteMany({ tenantId, userId: user.userId, usedAt: null });
+      const token = randomToken(48);
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_TTL_MS);
+      await emailVerifications.insertOne({
+        tenantId,
+        userId: user.userId,
+        email: normalizedEmail,
+        token,
+        createdAt: now,
+        expiresAt,
+        usedAt: null,
+      });
+
+      const verificationLink = `${PUBLIC_BASE_URL}/email-verification/${token}`;
+      const response = { success: true };
+      if (ALLOW_UNSAFE) response.debug = { verificationToken: token, verificationLink };
+      res.json(response);
+    } catch (e) {
+      logError(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/auth/email-verification/confirm", async (req, res) => {
+    try {
+      const parsed = confirmEmailSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
+      const { tenantId, token } = parsed.data;
+      await verifyEmailToken({ tenantId, token });
+      res.json({ success: true });
+    } catch (e) {
+      logError(e);
+      res.status(e.status || 500).json({ error: e.message });
+    }
+  });
+
+  app.get("/email-verification/:token", async (req, res) => {
+    const token = (req.params.token || "").trim();
+    if (!token) {
+      return res.status(400).send(renderSimplePage({ title: "Verification failed", message: "Missing verification token.", success: false }));
+    }
+    try {
+      await verifyEmailToken({ token });
+      return res.send(renderSimplePage({ title: "Email verified", message: "Thanks! You can now return to the app and log in.", success: true }));
+    } catch (e) {
+      logError(e);
+      const status = e.status || 500;
+      const message = status === 400 ? e.message : "Unable to verify email right now. Please try again.";
+      return res.status(status).send(renderSimplePage({ title: "Verification failed", message, success: false }));
     }
   });
 
@@ -390,14 +646,14 @@ async function start() {
       const user = await users.findOne({ tenantId, email: normalizedEmail });
 
       // always pretend success to avoid leaking which emails exist
-      if (!user) return res.json({ success: true });
+      if (!user) return res.json({ success: true, message: "If an account exists, you'll receive an email with the reset link." });
 
       const passwordResets = db.collection("passwordResets");
       await passwordResets.deleteMany({ tenantId, email: normalizedEmail, usedAt: null });
 
       const token = randomToken(48);
       const now = new Date();
-      const expiresAt = new Date(now.getTime() + 1000 * 60 * 30); // 30 minutes
+      const expiresAt = new Date(now.getTime() + PASSWORD_RESET_TTL_MS);
       await passwordResets.insertOne({
         tenantId,
         email: normalizedEmail,
@@ -408,8 +664,10 @@ async function start() {
         usedAt: null,
       });
 
-      const response = { success: true };
+      const resetUrl = `${PUBLIC_BASE_URL}/password-reset/${token}`;
+      const response = { success: true, message: "If an account exists, you'll receive an email with the reset link." };
       if (ALLOW_UNSAFE) response.token = token;
+      if (ALLOW_UNSAFE) response.resetUrl = resetUrl;
       res.json(response);
     } catch (e) {
       logError(e);
@@ -422,28 +680,52 @@ async function start() {
       const parsed = confirmResetSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
       const { tenantId, token, password } = parsed.data;
-
-      const passwordResets = db.collection("passwordResets");
-      const reset = await passwordResets.findOne({ tenantId, token });
-      if (!reset || reset.usedAt) {
-        return res.status(400).json({ error: "Invalid or expired reset token" });
-      }
-      if (reset.expiresAt && reset.expiresAt < new Date()) {
-        return res.status(400).json({ error: "Invalid or expired reset token" });
-      }
-
-      const users = db.collection("users");
-      const user = await users.findOne({ tenantId, email: reset.email });
-      if (!user) return res.status(404).json({ error: "User not found" });
-
-      const passwordHash = await hashPassword(password);
-      await users.updateOne({ _id: user._id }, { $set: { passwordHash, updatedAt: new Date() } });
-      await passwordResets.updateOne({ _id: reset._id }, { $set: { usedAt: new Date() } });
-
+      await applyPasswordReset({ token, password, tenantId });
       res.json({ success: true });
     } catch (e) {
       logError(e);
-      res.status(500).json({ error: e.message });
+      res.status(e.status || 500).json({ error: e.message });
+    }
+  });
+
+  app.get("/password-reset/:token", async (req, res) => {
+    try {
+      const token = (req.params.token || "").trim();
+      if (!token) {
+        return res.status(400).send(renderPasswordResetPage({ token, error: "Missing reset token", success: false }));
+      }
+      const passwordResets = db.collection("passwordResets");
+      const reset = await passwordResets.findOne({ token });
+      if (!reset || reset.usedAt) {
+        return res.status(400).send(renderPasswordResetPage({ token, error: "This reset link is no longer valid.", success: false }));
+      }
+      if (reset.expiresAt && reset.expiresAt < new Date()) {
+        return res.status(400).send(renderPasswordResetPage({ token, error: "This reset link has expired.", success: false }));
+      }
+      return res.send(renderPasswordResetPage({ token, error: null, success: false }));
+    } catch (e) {
+      logError(e);
+      return res.status(500).send(renderPasswordResetPage({ token: req.params.token, error: "Unexpected error. Please try again.", success: false }));
+    }
+  });
+
+  app.post("/password-reset/:token", async (req, res) => {
+    const token = (req.params.token || "").trim();
+    const password = (req.body?.password || "").toString();
+    if (!token) {
+      return res.status(400).send(renderPasswordResetPage({ token, error: "Missing reset token", success: false }));
+    }
+    if (!password || password.length < 8) {
+      return res.status(400).send(renderPasswordResetPage({ token, error: "Password must be at least 8 characters.", success: false }));
+    }
+    try {
+      await applyPasswordReset({ token, password });
+      return res.send(renderPasswordResetPage({ token, error: null, success: true }));
+    } catch (e) {
+      logError(e);
+      const status = e.status || 500;
+      const message = status === 400 ? e.message : "Unable to update password. Please try again.";
+      return res.status(status).send(renderPasswordResetPage({ token, error: message, success: false }));
     }
   });
 
