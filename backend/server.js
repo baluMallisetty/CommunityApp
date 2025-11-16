@@ -17,6 +17,10 @@
 // ALLOW_UNSAFE=true
 // PASSWORD_PEPPER=
 // MAX_DOCS=500
+// DEFAULT_TENANT_ID=t123
+// GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+// FACEBOOK_APP_ID=123456789012345
+// FACEBOOK_APP_SECRET=replace_with_facebook_secret
 //
 // Run: node server.js
 
@@ -31,6 +35,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import jwt from "jsonwebtoken";
+import { OAuth2Client } from "google-auth-library";
+import { fetch } from "undici";
 
 dotenv.config();
 
@@ -40,6 +46,28 @@ const MAX_DOCS = parseInt(process.env.MAX_DOCS || "500", 10);
 const ALLOW_UNSAFE = (process.env.ALLOW_UNSAFE || "false") === "true";
 const JWT_SECRET = process.env.JWT_SECRET || "changeme";
 const PASSWORD_PEPPER = process.env.PASSWORD_PEPPER || "";
+const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || "t123";
+
+const GOOGLE_CLIENT_ID_PLACEHOLDER = "your_google_client_id.apps.googleusercontent.com";
+const FACEBOOK_APP_ID_PLACEHOLDER = "123456789012345";
+
+const hasRealValue = (value, placeholder) =>
+  typeof value === "string" && value.trim().length > 0 && (placeholder ? value !== placeholder : true);
+
+const GOOGLE_CLIENT_ID = hasRealValue(process.env.GOOGLE_CLIENT_ID, GOOGLE_CLIENT_ID_PLACEHOLDER)
+  ? process.env.GOOGLE_CLIENT_ID
+  : "";
+const FACEBOOK_APP_ID = hasRealValue(process.env.FACEBOOK_APP_ID, FACEBOOK_APP_ID_PLACEHOLDER)
+  ? process.env.FACEBOOK_APP_ID
+  : "";
+const FACEBOOK_APP_SECRET = hasRealValue(process.env.FACEBOOK_APP_SECRET)
+  ? process.env.FACEBOOK_APP_SECRET
+  : "";
+
+const googleOAuthClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+const facebookAppToken = FACEBOOK_APP_ID && FACEBOOK_APP_SECRET
+  ? `${FACEBOOK_APP_ID}|${FACEBOOK_APP_SECRET}`
+  : null;
 const BCRYPT_ROUNDS = 10;
 
 // absolute base URL for local dev
@@ -339,6 +367,174 @@ async function start() {
     } catch (e) {
       logError(e);
       res.status(500).json({ error: e.message });
+    }
+  });
+
+  const tenantIdForOAuth = DEFAULT_TENANT_ID;
+
+  async function ensureUsername(users, tenantId, rawBase) {
+    const cleanedBase = (rawBase || "member")
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, "");
+    const base = cleanedBase.length > 0 ? cleanedBase : `member${Math.floor(Math.random() * 1000)}`;
+    let candidate = base;
+    let suffix = 1;
+    while (await users.findOne({ tenantId, username: candidate })) {
+      candidate = `${base}${suffix++}`;
+    }
+    return candidate;
+  }
+
+  async function findOrCreateOAuthUser({ provider, providerId, email, name }) {
+    const users = db.collection("users");
+    const tenantId = tenantIdForOAuth;
+    const lowerEmail = email ? email.toLowerCase() : null;
+
+    let user = null;
+    if (lowerEmail) {
+      user = await users.findOne({ tenantId, email: lowerEmail });
+    }
+    if (!user) {
+      user = await users.findOne({
+        tenantId,
+        externalAccounts: { $elemMatch: { provider, providerId } },
+      });
+    }
+
+    const now = new Date();
+    if (!user) {
+      const usernameSeed = lowerEmail?.split("@")[0] || name || `${provider}_${providerId.slice(-6)}`;
+      const username = await ensureUsername(users, tenantId, usernameSeed);
+      const doc = {
+        userId: `${provider}:${tenantId}:${providerId}`,
+        tenantId,
+        role: "member",
+        email: lowerEmail,
+        username,
+        name: name || username,
+        providers: [provider],
+        externalAccounts: [{ provider, providerId }],
+        createdAt: now,
+        updatedAt: now,
+      };
+      await users.insertOne(doc);
+      user = doc;
+    } else {
+      const providerSet = new Set([...(user.providers || []), provider]);
+      const externalAccounts = Array.isArray(user.externalAccounts) ? [...user.externalAccounts] : [];
+      if (!externalAccounts.some((acc) => acc.provider === provider && acc.providerId === providerId)) {
+        externalAccounts.push({ provider, providerId });
+      }
+      const updates = {
+        providers: Array.from(providerSet),
+        externalAccounts,
+        updatedAt: now,
+      };
+      if (lowerEmail && lowerEmail !== user.email) updates.email = lowerEmail;
+      if (name && name !== user.name) updates.name = name;
+      await users.updateOne({ _id: user._id }, { $set: updates });
+      user = { ...user, ...updates };
+    }
+
+    const token = signToken({
+      userId: user.userId,
+      tenantId: user.tenantId,
+      role: user.role,
+      email: user.email,
+      name: user.name,
+    });
+    const { passwordHash, ...safeUser } = user;
+    return { token, user: safeUser };
+  }
+
+  app.post("/auth/oauth/google", async (req, res) => {
+    if (!googleOAuthClient) {
+      return res.status(503).json({ error: "Google login is not configured" });
+    }
+    const { idToken, accessToken } = req.body || {};
+    if (!idToken && !accessToken) {
+      return res.status(400).json({ error: "idToken or accessToken is required" });
+    }
+    try {
+      let profile;
+      if (idToken) {
+        const ticket = await googleOAuthClient.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_ID });
+        const payload = ticket.getPayload();
+        if (!payload?.sub) throw new Error("Google token missing subject");
+        profile = {
+          provider: "google",
+          providerId: payload.sub,
+          email: payload.email,
+          name: payload.name || payload.email,
+        };
+      } else {
+        const response = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!response.ok) {
+          throw new Error(`Google profile request failed (${response.status})`);
+        }
+        const payload = await response.json();
+        if (!payload?.sub) throw new Error("Google profile missing subject");
+        profile = {
+          provider: "google",
+          providerId: payload.sub,
+          email: payload.email,
+          name: payload.name || payload.email,
+        };
+      }
+
+      const result = await findOrCreateOAuthUser(profile);
+      res.json(result);
+    } catch (e) {
+      logError(e);
+      res.status(401).json({ error: "Google login failed" });
+    }
+  });
+
+  app.post("/auth/oauth/facebook", async (req, res) => {
+    if (!facebookAppToken) {
+      return res.status(503).json({ error: "Facebook login is not configured" });
+    }
+    const { accessToken } = req.body || {};
+    if (!accessToken) {
+      return res.status(400).json({ error: "accessToken is required" });
+    }
+    try {
+      const debugResp = await fetch(
+        `https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${facebookAppToken}`
+      );
+      const debugData = await debugResp.json();
+      if (!debugResp.ok || !debugData?.data?.is_valid) {
+        return res.status(401).json({ error: "Invalid Facebook token" });
+      }
+
+      const profileResp = await fetch(
+        "https://graph.facebook.com/v17.0/me?fields=id,name,email",
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      if (!profileResp.ok) {
+        throw new Error(`Facebook profile request failed (${profileResp.status})`);
+      }
+      const profileData = await profileResp.json();
+      if (!profileData?.id) {
+        throw new Error("Facebook profile missing id");
+      }
+
+      const result = await findOrCreateOAuthUser({
+        provider: "facebook",
+        providerId: profileData.id,
+        email: profileData.email,
+        name: profileData.name,
+      });
+      res.json(result);
+    } catch (e) {
+      logError(e);
+      res.status(401).json({ error: "Facebook login failed" });
     }
   });
 
