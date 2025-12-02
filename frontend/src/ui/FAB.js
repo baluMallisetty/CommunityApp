@@ -8,7 +8,7 @@ export default function FAB({ title = 'Post', onPress }) {
       style={{
         position: Platform.OS === 'web' ? 'fixed' : 'absolute',
         right: 16,
-        bottom: 24,
+        bottom: 64,
         shadowColor: '#000',
         shadowOpacity: 0.15,
         shadowRadius: 8,
