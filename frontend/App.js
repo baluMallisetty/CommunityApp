@@ -13,6 +13,7 @@ import PasswordResetScreen from './src/screens/auth/PasswordResetScreen';
 import FeedScreen from './src/screens/posts/FeedScreen';
 import PostDetailScreen from './src/screens/posts/PostDetailScreen';
 import PostMapScreen from './src/screens/posts/PostMapScreen';
+
 import { theme } from './src/theme';
 
 const isWeb = Platform.OS === 'web';

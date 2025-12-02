@@ -3,7 +3,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Switch, Platform } from 'react-native';
 import { AuthContext } from '../../context/AuthContext';
 import Button from '../../ui/Button';
-import { loadRememberSignup, saveRememberSignup } from '../api/credentials';
+import { loadRememberSignup, saveRememberSignup } from '../../api/credentials';
 
 export default function SignupScreen({ navigation }) {
   const { doSignup } = useContext(AuthContext);
