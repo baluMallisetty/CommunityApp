@@ -2,11 +2,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { listPosts, likePost, unlikePost } from '../api';
-import PostCard from '../components/PostCard';
-import FAB from '../ui/FAB';
-import CreatePostModal from '../components/CreatePostModal';
-import { theme } from '../theme';
+import { listPosts, likePost, unlikePost } from '../../api';
+import PostCard from '../../components/PostCard';
+import FAB from '../../ui/FAB';
+import CreatePostModal from '../../components/CreatePostModal';
+import { theme } from '../../theme';
 
 export default function FeedScreen({ navigation }) {
   const [q, setQ] = useState('');

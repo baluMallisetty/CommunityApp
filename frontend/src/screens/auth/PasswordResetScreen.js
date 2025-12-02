@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, Platform } from 'react-native';
 
-import { DEFAULT_TENANT_ID } from '../config';
-import { requestPasswordReset, confirmPasswordReset } from '../api/auth';
-import Button from '../ui/Button';
+import { DEFAULT_TENANT_ID } from '../../config';
+import { requestPasswordReset, confirmPasswordReset } from '../../api/auth';
+import Button from '../../ui/Button';
 
 export default function PasswordResetScreen({ navigation }) {
   const [email, setEmail] = useState('');
