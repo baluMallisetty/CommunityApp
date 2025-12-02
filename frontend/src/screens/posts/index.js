@@ -1,3 +1,3 @@
-export { default as FeedScreen } from './FeedScreen.js';
-export { default as PostDetailScreen } from './PostDetailScreen.js';
-export { default as PostMapScreen } from './PostMapScreen.js';
+export { default as FeedScreen } from './FeedScreen';
+export { default as PostDetailScreen } from './PostDetailScreen';
+export { default as PostMapScreen } from './PostMapScreen';
