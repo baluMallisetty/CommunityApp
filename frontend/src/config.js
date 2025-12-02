@@ -1,7 +1,10 @@
 // src/config.js
 const env = typeof process !== 'undefined' && process.env ? process.env : {};
 
-const DEFAULT_API_BASE = 'https://6e2bba54699c.ngrok-free.app' || 'http://localhost:3001'; // Android emulator: 'http://10.0.2.2:3001'
+// Prefer explicit env configuration; otherwise fall back to local backend
+// so that development builds (including web) hit the running API instead of
+// a stale placeholder tunnel URL.
+const DEFAULT_API_BASE = env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001'; // Android emulator: 'http://10.0.2.2:3001'
 const DEFAULT_TENANT = 't123';
 const GOOGLE_CLIENT_ID_PLACEHOLDER = 'your_google_client_id.apps.googleusercontent.com';
 const FACEBOOK_APP_ID_PLACEHOLDER = '123456789012345';
@@ -9,7 +12,7 @@ const FACEBOOK_APP_ID_PLACEHOLDER = '123456789012345';
 const hasRealValue = (value, placeholder) =>
   typeof value === 'string' && value.trim().length > 0 && (placeholder ? value !== placeholder : true);
 
-export const BASE_URL = env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_API_BASE;
+export const BASE_URL = DEFAULT_API_BASE;
 export const DEFAULT_TENANT_ID = env.EXPO_PUBLIC_TENANT_ID || DEFAULT_TENANT;
 
 // --- OAuth client IDs (replace these) ---
