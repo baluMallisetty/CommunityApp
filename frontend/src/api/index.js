@@ -73,27 +73,20 @@ export const listMessages = (chatId, params) => apiGet(`/chats/${chatId}/message
 
 // ---------- Media helper (native Image auth) ----------
 export async function imageSource(pathOrUrl) {
-  if (!pathOrUrl) return null;
+  const url = pathOrUrl?.startsWith('http') ? pathOrUrl : `${BASE_URL}${pathOrUrl}`;
+  const tokens = await getTokens();
+  const token = tokens?.accessToken;
 
-  try {
-    const url = pathOrUrl?.startsWith('http') ? pathOrUrl : `${BASE_URL}${pathOrUrl}`;
-    const tokens = await getTokens();
-    const token = tokens?.accessToken;
-
-    // React Native Web's <Image> does not support custom headers, so embed the
-    // token as a query param for browser builds while keeping header-based auth
-    // for native platforms.
-    if (Platform.OS === 'web' && token) {
-      const u = new URL(url);
-      u.searchParams.set('token', token);
-      return { uri: u.toString() };
-    }
-
-    return token
-      ? { uri: url, headers: { Authorization: `Bearer ${token}` } }
-      : { uri: url };
-  } catch (err) {
-    console.warn('Failed to build media source', err?.message || err);
-    return null;
+  // React Native Web's <Image> does not support custom headers, so embed the
+  // token as a query param for browser builds while keeping header-based auth
+  // for native platforms.
+  if (Platform.OS === 'web' && token) {
+    const u = new URL(url);
+    u.searchParams.set('token', token);
+    return { uri: u.toString() };
   }
+
+  return token
+    ? { uri: url, headers: { Authorization: `Bearer ${token}` } }
+    : { uri: url };
 }
