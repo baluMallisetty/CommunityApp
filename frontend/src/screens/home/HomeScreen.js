@@ -1,7 +1,7 @@
 // src/screens/HomeScreen.js
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList } from 'react-native';
-import { request } from '../api/client';
+import { request } from '../../api/client';
 
 export default function HomeScreen() {
   const [posts, setPosts] = useState([]);
