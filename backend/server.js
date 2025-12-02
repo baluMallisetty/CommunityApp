@@ -66,6 +66,7 @@ const FACEBOOK_APP_ID = hasRealValue(process.env.FACEBOOK_APP_ID, FACEBOOK_APP_I
 const FACEBOOK_APP_SECRET = hasRealValue(process.env.FACEBOOK_APP_SECRET)
   ? process.env.FACEBOOK_APP_SECRET
   : "";
+const IS_DEV_MODE = ALLOW_UNSAFE || process.env.NODE_ENV !== "production";
 
 const googleOAuthClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 const facebookAppToken = FACEBOOK_APP_ID && FACEBOOK_APP_SECRET
@@ -413,7 +414,15 @@ async function start() {
     const passwordResets = db.collection("passwordResets");
     const users = db.collection("users");
 
-    const query = tenantId ? { token, tenantId } : { token };
+    const normalizedToken = (token || "").trim();
+    if (!normalizedToken) {
+      throw badRequestError("Invalid or expired reset token");
+    }
+
+    const normalizedTenantId = typeof tenantId === "string" ? tenantId.trim() : tenantId;
+    const query = normalizedTenantId
+      ? { token: normalizedToken, tenantId: normalizedTenantId }
+      : { token: normalizedToken };
     const reset = await passwordResets.findOne(query);
     if (!reset || reset.usedAt) {
       throw badRequestError("Invalid or expired reset token");
@@ -666,8 +675,8 @@ async function start() {
 
       const resetUrl = `${PUBLIC_BASE_URL}/password-reset/${token}`;
       const response = { success: true, message: "If an account exists, you'll receive an email with the reset link." };
-      if (ALLOW_UNSAFE) response.token = token;
-      if (ALLOW_UNSAFE) response.resetUrl = resetUrl;
+      if (IS_DEV_MODE) response.token = token;
+      if (IS_DEV_MODE) response.resetUrl = resetUrl;
       res.json(response);
     } catch (e) {
       logError(e);
