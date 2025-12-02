@@ -10,10 +10,12 @@ export default function PostDetailScreen({ route }) {
   const [loading, setLoading] = useState(true);
   const [media, setMedia] = useState([]); // [{type, source}]
   const [viewer, setViewer] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     (async () => {
       try {
+        setError(null);
         setLoading(true);
         const data = await getPost(id);
         setPost(data.post);
@@ -24,7 +26,11 @@ export default function PostDetailScreen({ route }) {
             source: await imageSource(a.absoluteUrl || a.url || a.path),
           }))
         );
-        setMedia(list);
+        setMedia(list.filter((item) => item?.source));
+      } catch (err) {
+        console.warn('Failed to load post', err?.message || err);
+        setError(err?.message || 'Unable to load post');
+        setMedia([]);
       } finally {
         setLoading(false);
       }
@@ -35,6 +41,15 @@ export default function PostDetailScreen({ route }) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ marginBottom: 8, fontWeight: '600' }}>Something went wrong</Text>
+        <Text style={{ textAlign: 'center', color: theme.colors.sub }}>{error}</Text>
       </View>
     );
   }

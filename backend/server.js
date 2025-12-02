@@ -127,8 +127,10 @@ function signToken(payload) {
 async function requireAuth(req, res, next) {
   try {
     const header = req.headers.authorization;
-    if (!header) return res.status(401).json({ error: "Missing Authorization header" });
-    const [type, token] = header.split(" ");
+    const tokenFromQuery = typeof req.query.token === "string" ? req.query.token : null;
+    const raw = header || (tokenFromQuery ? `Bearer ${tokenFromQuery}` : null);
+    if (!raw) return res.status(401).json({ error: "Missing Authorization header" });
+    const [type, token] = raw.split(" ");
     if (type !== "Bearer" || !token) return res.status(401).json({ error: "Invalid Authorization header" });
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
