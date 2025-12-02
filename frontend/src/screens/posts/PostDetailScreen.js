@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, FlatList, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Dimensions } from 'react-native';
-import { getPost, imageSource } from '../api';
-import { theme } from '../theme';
+import { getPost, imageSource } from '../../api';
+import { theme } from '../../theme';
 import { Video } from 'expo-av';
 
 export default function PostDetailScreen({ route }) {

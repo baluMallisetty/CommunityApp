@@ -7,12 +7,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Feather } from '@expo/vector-icons';
 
 import { AuthProvider, AuthContext } from './src/context/AuthContext';
-import LoginScreen from './src/screens/LoginScreen';
-import SignupScreen from './src/screens/SignupScreen';
-import PasswordResetScreen from './src/screens/PasswordResetScreen';
-import FeedScreen from './src/screens/FeedScreen';
-import PostDetailScreen from './src/screens/PostDetailScreen';
-import PostMapScreen from './src/screens/PostMapScreen';
+import LoginScreen from './src/screens/auth/LoginScreen';
+import SignupScreen from './src/screens/auth/SignupScreen';
+import PasswordResetScreen from './src/screens/auth/PasswordResetScreen';
+import FeedScreen from './src/screens/posts/FeedScreen';
+import PostDetailScreen from './src/screens/posts/PostDetailScreen';
+import PostMapScreen from './src/screens/posts/PostMapScreen';
 import { theme } from './src/theme';
 
 const isWeb = Platform.OS === 'web';
