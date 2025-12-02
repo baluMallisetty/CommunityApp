@@ -414,7 +414,15 @@ async function start() {
     const passwordResets = db.collection("passwordResets");
     const users = db.collection("users");
 
-    const query = tenantId ? { token, tenantId } : { token };
+    const normalizedToken = (token || "").trim();
+    if (!normalizedToken) {
+      throw badRequestError("Invalid or expired reset token");
+    }
+
+    const normalizedTenantId = typeof tenantId === "string" ? tenantId.trim() : tenantId;
+    const query = normalizedTenantId
+      ? { token: normalizedToken, tenantId: normalizedTenantId }
+      : { token: normalizedToken };
     const reset = await passwordResets.findOne(query);
     if (!reset || reset.usedAt) {
       throw badRequestError("Invalid or expired reset token");
