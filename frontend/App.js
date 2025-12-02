@@ -10,9 +10,9 @@ import { AuthProvider, AuthContext } from './src/context/AuthContext';
 import LoginScreen from './src/screens/auth/LoginScreen';
 import SignupScreen from './src/screens/auth/SignupScreen';
 import PasswordResetScreen from './src/screens/auth/PasswordResetScreen';
-import FeedScreen from './src/screens/posts/FeedScreen.js';
-import PostDetailScreen from './src/screens/posts/PostDetailScreen.js';
-import PostMapScreen from './src/screens/posts/PostMapScreen.js';
+import FeedScreen from './src/screens/posts/FeedScreen';
+import PostDetailScreen from './src/screens/posts/PostDetailScreen';
+import PostMapScreen from './src/screens/posts/PostMapScreen';
 import { theme } from './src/theme';
 
 const isWeb = Platform.OS === 'web';
