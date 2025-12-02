@@ -1,3 +1,4 @@
+import MapView, { Marker } from 'react-native-maps';
 import React, { useState } from 'react';
 import {
   Modal,
@@ -13,7 +14,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import DraggableFlatList from 'react-native-draggable-flatlist';
-import MapView, { Marker } from 'react-native-maps';
 
 import { createPost } from '../api';
 import Screen from '../ui/Screen';
@@ -131,7 +131,6 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
     }
   };
 
-  // capture the item index so media can be removed or replaced
   const renderMediaItem = ({ item, drag, getIndex }) => {
     const index = getIndex();
     return (
@@ -212,40 +211,14 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
             editable={false}
             onPress={() => setLocationPickerVisible(true)}
           />
-          {Platform.OS === 'web' && location ? (
+
+          {/* Web: just show clear button, no MapView */}
+          {location ? (
             <TouchableOpacity onPress={() => setLocation(null)} style={{ marginBottom: 12 }}>
               <Text style={{ color: '#DC2626', fontWeight: '600' }}>Clear location</Text>
             </TouchableOpacity>
           ) : null}
-          {Platform.OS !== 'web' && location ? (
-            <View style={{ height: 150, marginBottom: 12, position: 'relative' }}>
-              <MapView
-                style={{ flex: 1 }}
-                pointerEvents="none"
-                region={{
-                  latitude: location.latitude,
-                  longitude: location.longitude,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                }}
-              >
-                <Marker coordinate={location} />
-              </MapView>
-              <TouchableOpacity
-                onPress={() => setLocation(null)}
-                style={{
-                  position: 'absolute',
-                  top: 6,
-                  right: 6,
-                  backgroundColor: 'rgba(0,0,0,0.6)',
-                  borderRadius: 12,
-                  padding: 4,
-                }}
-              >
-                <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
+
           <View style={{ flexDirection: 'row', marginBottom: 12 }}>
             <Button
               title="Use Current Location"
@@ -253,6 +226,7 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
               style={{ flex: 1 }}
             />
           </View>
+
           {media.length > 0 && (
             <DraggableFlatList
               data={media}
@@ -263,6 +237,7 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
               contentContainerStyle={{ marginBottom: 12 }}
             />
           )}
+
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
             <Button
               title="Add Media"
@@ -276,6 +251,7 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
               style={{ flex: 1 }}
             />
           </View>
+
           <View style={{ marginTop: 12 }}>
             <Text style={{ fontWeight: '600', marginBottom: 8 }}>Category</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -289,6 +265,7 @@ export default function CreatePostModal({ visible, onClose, onCreated }) {
               ))}
             </View>
           </View>
+
           <View style={{ marginTop: 12 }}>
             <Button title="Cancel" onPress={onClose} />
           </View>
@@ -357,4 +334,3 @@ function PreviewModal({ item, onClose }) {
     </Modal>
   );
 }
-
