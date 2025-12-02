@@ -1,4 +1,5 @@
 // src/api/index.js
+import { Platform } from 'react-native';
 import { apiGet, apiPost, apiPatch, apiDelete, apiUploadPost } from './apiClient';
 import { BASE_URL } from '../config';
 import { getTokens } from './tokenStore';
@@ -75,6 +76,16 @@ export async function imageSource(pathOrUrl) {
   const url = pathOrUrl?.startsWith('http') ? pathOrUrl : `${BASE_URL}${pathOrUrl}`;
   const tokens = await getTokens();
   const token = tokens?.accessToken;
+
+  // React Native Web's <Image> does not support custom headers, so embed the
+  // token as a query param for browser builds while keeping header-based auth
+  // for native platforms.
+  if (Platform.OS === 'web' && token) {
+    const u = new URL(url);
+    u.searchParams.set('token', token);
+    return { uri: u.toString() };
+  }
+
   return token
     ? { uri: url, headers: { Authorization: `Bearer ${token}` } }
     : { uri: url };
