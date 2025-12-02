@@ -1,9 +1,9 @@
 // src/screens/LoginScreen.js
 import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Platform, Switch } from 'react-native';
-import { AuthContext } from '../context/AuthContext';
-import Button from '../ui/Button';
-import { loadRememberLogin, saveRememberLogin } from '../api/credentials';
+import { AuthContext } from '../../context/AuthContext';
+import Button from '../../ui/Button';
+import { loadRememberLogin, saveRememberLogin } from '../../api/credentials';
 
 export default function LoginScreen({ navigation }) {
   const {
