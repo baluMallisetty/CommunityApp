@@ -14,13 +14,19 @@ export default function PostCard({ post, onLike, onComment, onShare, onPress }) 
   useEffect(() => {
     let cancel = false;
     (async () => {
-      const list = await Promise.all(
-        attachments.map(async (a) => ({
-          type: a.mimetype?.startsWith('video') ? 'video' : 'image',
-          source: await imageSource(a.absoluteUrl || a.url || a.path),
-        }))
-      );
-      if (!cancel) setMedia(list);
+      try {
+        const list = await Promise.all(
+          attachments.map(async (a) => ({
+            type: a.mimetype?.startsWith('video') ? 'video' : 'image',
+            source: await imageSource(a.absoluteUrl || a.url || a.path),
+          }))
+        );
+        const safeList = list.filter((item) => item?.source);
+        if (!cancel) setMedia(safeList);
+      } catch (err) {
+        console.warn('Failed to load post media', err?.message || err);
+        if (!cancel) setMedia([]);
+      }
     })();
     return () => {
       cancel = true;
