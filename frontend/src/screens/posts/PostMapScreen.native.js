@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,8 +10,8 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { listPosts } from '../api';
-import { theme } from '../theme';
+import { listPosts } from '../../api';
+import { theme } from '../../theme';
 
 const DEFAULT_REGION = {
   latitude: 37.773972,
@@ -184,6 +185,10 @@ const CATEGORY_PALETTE = [
 
 const RADIUS_OPTIONS = [2, 5, 10, 25, 50];
 
+let MapView;
+let Callout;
+let NativeMarker;
+
 function extractCoordinate(post) {
   const lat = post?.location?.coordinates?.[1];
   const lng = post?.location?.coordinates?.[0];
@@ -246,7 +251,14 @@ function FilterChip({ label, selected, onPress }) {
   );
 }
 
-const isWeb = true;
+const isWeb = Platform.OS === 'web';
+
+if (!isWeb) {
+  const ReactNativeMaps = require('react-native-maps');
+  MapView = ReactNativeMaps.default || ReactNativeMaps;
+  Callout = ReactNativeMaps.Callout;
+  NativeMarker = ReactNativeMaps.Marker;
+}
 
 export default function PostMapScreen({ navigation }) {
   const [posts, setPosts] = useState([]);
@@ -578,7 +590,7 @@ export default function PostMapScreen({ navigation }) {
     );
   }
 
-  const mapContent = (
+  const mapContent = isWeb ? (
     <View style={[StyleSheet.absoluteFill, styles.webMapContainer]}>
       <View ref={setWebMapContainer} style={styles.webMap} />
       {webMapLoading ? (
@@ -595,6 +607,36 @@ export default function PostMapScreen({ navigation }) {
         </View>
       ) : null}
     </View>
+  ) : (
+    <MapView key={mapKey} style={StyleSheet.absoluteFill} initialRegion={region}>
+      {points.map(({ post, coordinate, color, category }) => {
+        const priceLabel = getListingPrice(post) || 'Price unavailable';
+        return (
+          <NativeMarker key={post._id} coordinate={coordinate} pinColor={color}>
+            <Callout
+              onPress={() =>
+                navigation?.navigate?.('PostDetail', {
+                  id: post._id,
+                })
+              }
+            >
+              <View style={styles.callout}>
+                <View style={styles.calloutHeader}>
+                  <Text style={styles.calloutTitle} numberOfLines={1}>
+                    {post.title || 'Untitled Post'}
+                  </Text>
+                  <Text style={styles.calloutPrice} numberOfLines={1}>
+                    {priceLabel}
+                  </Text>
+                </View>
+                <Text style={styles.calloutCategory}>{category}</Text>
+                <Text style={styles.calloutHint}>Tap to open</Text>
+              </View>
+            </Callout>
+          </NativeMarker>
+        );
+      })}
+    </MapView>
   );
 
   return (
