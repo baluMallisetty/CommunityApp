@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Callout, Marker as NativeMarker } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
 import { listPosts } from '../api';
 import { theme } from '../theme';
@@ -186,6 +185,10 @@ const CATEGORY_PALETTE = [
 
 const RADIUS_OPTIONS = [2, 5, 10, 25, 50];
 
+let MapView;
+let Callout;
+let NativeMarker;
+
 function extractCoordinate(post) {
   const lat = post?.location?.coordinates?.[1];
   const lng = post?.location?.coordinates?.[0];
@@ -249,6 +252,13 @@ function FilterChip({ label, selected, onPress }) {
 }
 
 const isWeb = Platform.OS === 'web';
+
+if (!isWeb) {
+  const ReactNativeMaps = require('react-native-maps');
+  MapView = ReactNativeMaps.default || ReactNativeMaps;
+  Callout = ReactNativeMaps.Callout;
+  NativeMarker = ReactNativeMaps.Marker;
+}
 
 export default function PostMapScreen({ navigation }) {
   const [posts, setPosts] = useState([]);
