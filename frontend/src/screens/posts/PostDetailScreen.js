@@ -23,7 +23,7 @@ export default function PostDetailScreen({ route }) {
         const list = await Promise.all(
           attachments.map(async (a) => ({
             type: a.mimetype?.startsWith('video') ? 'video' : 'image',
-            source: await imageSource(a.absoluteUrl || a.url || a.path),
+            source: await imageSource(a.path || a.url || a.absoluteUrl),
           }))
         );
         setMedia(list.filter((item) => item?.source));
