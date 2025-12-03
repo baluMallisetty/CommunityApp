@@ -828,12 +828,14 @@ async function start() {
       }
 
       const files = req.files || [];
+      const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+
       const attachments = files.map(f => {
         const name = path.basename(f.path);
         return {
           filename: f.originalname,
           path: `/uploads/${name}`,
-          absoluteUrl: `${PUBLIC_BASE_URL}/uploads/${name}`,
+          absoluteUrl: `${baseUrl}/uploads/${name}`,
           size: f.size,
           mimetype: f.mimetype,
         };
