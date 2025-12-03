@@ -11,7 +11,16 @@ import {
   View,
 } from 'react-native';
 import * as Location from 'expo-location';
-import MapView, { Marker } from 'react-native-maps';
+//import MapView, { Marker } from 'react-native-maps';
+let MapView;
+let Marker;
+
+if (Platform.OS !== 'web') {
+  const ReactNativeMaps = require('react-native-maps');
+  MapView = ReactNativeMaps.default || ReactNativeMaps;
+  Marker = ReactNativeMaps.Marker;
+}
+
 
 import Button from '../ui/Button';
 import { geocodeAddress } from '../utils/geocoding';
@@ -83,11 +92,11 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
 
   const region = selected
     ? {
-        latitude: selected.latitude,
-        longitude: selected.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }
+      latitude: selected.latitude,
+      longitude: selected.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    }
     : defaultRegion;
 
   const runSearch = useCallback(
@@ -263,7 +272,7 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
             </View>
           )}
         </View>
-        {Platform.OS !== 'web' && (
+        {Platform.OS !== 'web' && MapView && (
           <View style={{ height: 220 }}>
             <MapView
               style={{ flex: 1 }}
@@ -271,7 +280,7 @@ export default function LocationPickerModal({ visible, initialLocation, onSelect
               region={region}
               onPress={(e) => handleMapPress(e.nativeEvent.coordinate)}
             >
-              {selected && <Marker coordinate={selected} />}
+              {selected && Marker ? <Marker coordinate={selected} /> : null}
             </MapView>
           </View>
         )}
